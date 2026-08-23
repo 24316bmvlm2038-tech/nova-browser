@@ -1,242 +1,158 @@
-# 💰 Price Scanner Chat - AI-Powered Price Comparison Tool
+# Nova
 
-A modern ChatGPT-style web application that scans product prices across multiple sellers and provides real-time price comparisons with customizable settings.
+A ChatGPT-style chat app that runs entirely on your laptop. It searches the live
+web, and when you ask what something costs it scans real listings and shows you
+what sellers are asking — new and used, side by side, with links.
 
-## Features
+The model is [Ollama](https://ollama.ai) running locally. Nothing is sent to a
+hosted AI service.
 
-✨ **Key Features:**
-- 💬 **ChatGPT-like Interface** - Intuitive chat UI for seamless interaction
-- 💰 **Price Scanning** - Automatically detect price inquiries and fetch data
-- 🔍 **Multi-Seller Comparison** - Compare prices across multiple platforms
-- 🤖 **Ollama AI Integration** - Run AI locally on your laptop, no external APIs
-- ⚙️ **Customizable Settings** - Adjust scanner behavior with Zustand state management
-  - Toggle new/used item display
-  - Choose currency (USD, EUR, GBP)
-  - Set maximum result count
-  - Select AI models dynamically
-  - Toggle local AI on/off
-- 🌓 **Dark Mode Support** - Built-in light and dark theme support
-- 📱 **Responsive Design** - Works seamlessly on desktop and mobile
-- 🔐 **Complete Privacy** - All processing happens locally, no data sent to servers
+## What it does
 
-## Tech Stack
+- **Normal chat** — ask anything, answered by your local model.
+- **Grounded answers** — when a question needs current facts, it searches the web
+  first and cites the pages it used.
+- **Price scanning** — "how much is a Steam Deck?" or "what do people sell a PS5
+  for?" runs two searches (retail and second-hand), pulls prices out of the
+  results, and shows a comparison card with links to each seller.
+- **Customisable** — model, search behaviour, currency, new/used filters, and how
+  many sellers to show, all in Settings and all held in a Zustand store.
 
-- **Frontend Framework**: React 18 + Next.js 14
-- **State Management**: Zustand (lightweight, easy-to-customize)
-- **Styling**: Tailwind CSS
-- **Language**: TypeScript
-- **Type Safety**: Full TypeScript support
+## Setup
 
-## Project Structure
+### 1. Install and start Ollama
 
-```
-nova-browser/
-├── app/
-│   ├── layout.tsx          # Root layout
-│   └── page.tsx            # Home page
-├── components/
-│   ├── ChatInterface.tsx   # Main chat component
-│   ├── ChatMessage.tsx     # Individual message component
-│   ├── PriceCard.tsx       # Price data display card
-│   └── SettingsPanel.tsx   # Settings modal
-├── lib/
-│   └── priceScanner.ts     # Price scanning logic
-├── store/
-│   └── useChatStore.ts     # Zustand store configuration
-├── styles/
-│   └── globals.css         # Global Tailwind styles
-└── public/                 # Static assets
-```
-
-## Getting Started
-
-### Quick Start with Ollama
-
-#### 1. Install Ollama
-Download and install from [ollama.ai](https://ollama.ai)
-
-#### 2. Download an AI Model
 ```bash
-ollama pull neural-chat
-```
+# macOS: download from https://ollama.ai/download
+# Linux:
+curl -fsSL https://ollama.ai/install.sh | sh
 
-#### 3. Start Ollama
-```bash
+ollama pull llama3.2     # ~2GB, good default
 ollama serve
 ```
 
-#### 4. Run the App
-```bash
-# Install dependencies
-npm install
+### 2. Run the app
 
-# Start development server
+```bash
+npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser. The app will auto-detect Ollama and show ✅ when connected.
+Open http://localhost:3000. The dot next to "Nova" turns green when Ollama is
+reachable — click it to re-check.
 
-### Full Ollama Setup Guide
-See [OLLAMA_SETUP.md](./OLLAMA_SETUP.md) for detailed instructions, model recommendations, troubleshooting, and performance tips.
+That's it. Search works with no API key and no extra config.
 
-### Production Build
+### 3. Optional: a better search backend
+
+DuckDuckGo is the default because it needs no key, but it's scraped and gets rate
+limited. For heavier use, copy `.env.example` to `.env.local` and set one key:
+
+| Provider | Free tier | Env var |
+|---|---|---|
+| [Serper.dev](https://serper.dev) | 2,500 credits | `SERPER_API_KEY` |
+| [Brave Search](https://brave.com/search/api/) | 2,000/month | `BRAVE_SEARCH_API_KEY` |
+| [SearXNG](https://docs.searxng.org) (self-hosted) | unlimited | `SEARXNG_URL` |
+
+Serper gives the best price results — it returns a dedicated shopping block.
+The app picks up whichever you configure automatically.
+
+## How it fits together
+
+```
+Browser ──► Next.js API routes (your laptop) ──► Ollama  (127.0.0.1:11434)
+                                            └─► Search provider (web)
+```
+
+Every outbound call goes through the server, never the browser. That matters for
+two reasons: Ollama rejects cross-origin browser requests unless you set
+`OLLAMA_ORIGINS`, and API keys never reach the client bundle.
+
+| Route | Does |
+|---|---|
+| `POST /api/chat` | Searches if needed, prompts Ollama with the results, returns the reply plus citations |
+| `POST /api/scan` | Runs retail + second-hand searches, extracts prices, returns a comparison |
+| `POST /api/search` | Raw web search |
+| `GET /api/ollama/models` | Connection status and installed models |
+
+```
+lib/
+  search/providers.ts  DuckDuckGo / Brave / Serper / SearXNG behind one interface
+  search/html.ts       entity decoding and tag stripping for scraped markup
+  priceExtract.ts      pulls prices out of result text, filters the noise
+  searchIntent.ts      routes a message to chat / search / price scan
+  ollamaServer.ts      server-side Ollama client
+  api.ts               browser-side client for the routes above
+store/useChatStore.ts  Zustand: messages, config, connection state
+```
+
+## Getting prices out of search results
+
+This is the part that does the real work. Result snippets are messy, so
+`lib/priceExtract.ts` filters aggressively:
+
+- **Financing** — "From $799 or $33.29/mo." reads as $799, not $33.29.
+- **Discounts and fees** — "save $100", "$25 shipping", "was $849" are skipped.
+- **Wrong currency** — a USD scan ignores £ and € listings entirely.
+- **Accessories** — a $14.99 phone case in results for a $799 phone is dropped as
+  an outlier (anything below 15% or above 4× the median).
+- **Condition** — "pre-owned", "refurbished", "open box" mark a listing as used,
+  so new and used get averaged separately.
+- **Duplicates** — one listing per retailer per condition, the cheapest.
+
+Both US (`1,059.00`) and European (`1.299,99`) number formats parse correctly.
+
+**These are asking prices scraped from search results, not verified offers.**
+Treat them as a ballpark and click through before buying.
+
+## Tests
 
 ```bash
-# Build for production
-npm run build
-
-# Start production server
-npm start
+npm test
 ```
 
-## Usage
+14 tests covering the HTML parser, price extraction, and intent routing, run
+against a fixture of real search markup.
 
-### Basic Chat
-1. Type a message asking about product prices
-2. The AI detects price-related queries and scans for information
-3. Results display with a detailed price card showing:
-   - Average price across sellers
-   - Price range
-   - Individual seller prices and platforms
+To exercise the API routes without hitting the network, run the stub engine:
 
-### Available Commands
-- **Ask about prices**: "What is the price of iPhone 15?"
-- **Scan for deals**: "Find the cheapest MacBook Pro"
-- **Check specific items**: "How much does AirPods Pro cost?"
-
-### Customize Settings
-Click the ⚙️ Settings button to:
-- **Show New Items**: Toggle prices for new products
-- **Show Used Items**: Toggle used/refurbished prices
-- **Currency**: Switch between USD, EUR, or GBP
-- **Max Results**: Adjust how many sellers to display (1-10)
-
-## Zustand State Management
-
-The app uses Zustand for lightweight, efficient state management:
-
-```typescript
-// Example: Adding a message
-addMessage(message: Message) => void
-
-// Update scanner configuration
-updateScannerConfig(config: Partial<ChatState['scannerConfig']>) => void
-
-// AI and Ollama state
-setOllamaConnected(connected: boolean) => void
-setSelectedModel(model: string) => void
-
-// Clear all messages
-clearMessages() => void
+```bash
+npm run stub-engine                                    # terminal 1
+SEARCH_PROVIDER=searxng SEARXNG_URL=http://127.0.0.1:8899 npm run dev   # terminal 2
 ```
 
-All state is centralized in `store/useChatStore.ts` and easily customizable. The store tracks:
-- Chat messages and conversation history
-- Ollama connection status
-- Selected AI model
-- Scanner settings (currency, filters, etc.)
-- Local AI toggle state
+## Configuration
 
-## Ollama AI Integration
+All optional — see `.env.example`.
 
-The app integrates with Ollama for local AI inference:
+| Variable | Default | Purpose |
+|---|---|---|
+| `OLLAMA_URL` | `http://127.0.0.1:11434` | Where Ollama listens |
+| `OLLAMA_MODEL` | `llama3.2` | Fallback model |
+| `SEARCH_PROVIDER` | auto | Force `duckduckgo`/`brave`/`serper`/`searxng` |
+| `SERPER_API_KEY` | — | Serper.dev key |
+| `BRAVE_SEARCH_API_KEY` | — | Brave Search key |
+| `SEARXNG_URL` | — | Your SearXNG instance |
 
-### How It Works
-1. **Auto-Detection**: App checks if Ollama is running on startup
-2. **Model Management**: List and switch between installed models in settings
-3. **Dual Mode**: Works with or without Ollama (fallback responses when offline)
-4. **Smart Prompting**: Sends context-aware prompts for price analysis
+## Troubleshooting
 
-### Supported Models
-- **neural-chat** (4GB) - Recommended, fast and accurate
-- **mistral** (4GB) - Excellent quality
-- **dolphin-mixtral** (26GB) - Highest quality
-- **tinyllama** (637MB) - Ultra-lightweight
-- Any Ollama-compatible model
+**Dot stays red** — Ollama isn't running. `ollama serve`, then click the dot.
+Check `curl http://127.0.0.1:11434/api/tags` returns JSON.
 
-### Configuration
-```env
-# .env.local
-NEXT_PUBLIC_OLLAMA_URL=http://localhost:11434
-NEXT_PUBLIC_OLLAMA_MODEL=neural-chat
-```
+**"Could not reach Ollama"** — you have Ollama but no models. `ollama pull llama3.2`.
 
-See [OLLAMA_SETUP.md](./OLLAMA_SETUP.md) for detailed configuration.
+**Search returns 403 or 202** — DuckDuckGo is rate limiting you. Wait a few
+minutes, or set a `SERPER_API_KEY`.
 
-## API Integration
+**"none listed a USD price"** — the results had no prices in your currency. Try a
+more specific product name, or check the currency in Settings.
 
-Currently uses mock data for demonstration. To integrate real APIs:
+**Slow replies** — the first message after starting Ollama loads the model into
+RAM. Later ones are faster. On 8GB, `llama3.2` or `phi3` are comfortable;
+larger models will swap.
 
-1. **Update `lib/priceScanner.ts`**:
-   ```typescript
-   // Replace mock data with real API calls
-   const response = await fetch('https://api.example.com/prices', {
-     query: itemName
-   });
-   ```
+## Adding a real product API
 
-2. **Supported Integrations** (ready to implement):
-   - Amazon Product Advertising API
-   - eBay API
-   - Walmart API
-   - Best Buy API
-
-## Customization
-
-### Change Color Scheme
-Edit `tailwind.config.js`:
-```javascript
-colors: {
-  primary: '#YOUR_COLOR', // Change primary accent color
-}
-```
-
-### Add New Features
-1. **New state fields**: Add to `ChatState` in `store/useChatStore.ts`
-2. **New messages types**: Extend `Message` interface
-3. **Custom components**: Create in `components/` directory
-
-### Extend Scanner Logic
-Modify `lib/priceScanner.ts` to:
-- Add more product categories
-- Integrate real price APIs
-- Add product image fetching
-- Include additional metadata
-
-## Performance
-
-- **Optimized Bundle Size**: ~50KB gzipped
-- **Tree-shaking**: Unused code automatically removed
-- **Lazy Loading**: Components load on demand
-- **Zustand Efficiency**: Minimal re-renders
-
-## Browser Support
-
-- Chrome/Edge (latest)
-- Firefox (latest)
-- Safari (latest)
-- Mobile browsers
-
-## Contributing
-
-1. Create feature branch from `claude/ai-price-scanner-chat-*`
-2. Make changes and commit
-3. Push to branch
-4. Submit pull request
-
-## License
-
-MIT
-
-## Future Enhancements
-
-- 📸 Image-based product recognition
-- 📊 Price history charts
-- 🔔 Price drop alerts
-- 💾 Saved searches and favorites
-- 🌍 Multi-language support
-- 🔐 User accounts and preferences
-
----
-
-Built with ❤️ using React, Next.js, and Zustand
+`lib/search/providers.ts` defines a `SearchProvider` interface — `isConfigured()`
+and `search()`. Add an eBay or Amazon Product Advertising client there and it
+plugs into the scan route with no other changes.

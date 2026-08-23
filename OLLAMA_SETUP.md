@@ -1,322 +1,90 @@
-# 🚀 Ollama Setup Guide for Price Scanner Chat
+# Choosing and running a model
 
-This guide will help you set up Ollama to power the Price Scanner Chat application locally on your laptop.
+The [README](./README.md) covers install and setup. This is the detail on which
+model to run and how to keep it fast.
 
-## What is Ollama?
+## Picking a model
 
-Ollama is a lightweight, open-source framework for running large language models (LLMs) locally on your machine. With Ollama, you can:
-- Run AI models privately (no data sent to external servers)
-- Use the Price Scanner Chat offline
-- Customize AI behavior without API costs
-- Run models optimized for your hardware
+Ollama models are sized in billions of parameters. A rough rule: a model needs
+about 1.5× its download size in free RAM to run comfortably.
 
-## System Requirements
-
-- **RAM**: 4GB minimum (8GB+ recommended)
-- **Storage**: 5-15GB depending on model size
-- **Processor**: Modern CPU (Apple Silicon, Intel, or AMD)
-- **OS**: macOS, Linux, or Windows (with WSL2)
-
-## Installation
-
-### macOS
-1. Download from https://ollama.ai/download/mac
-2. Run the installer and follow the prompts
-3. Ollama will start automatically and run in the background
-
-### Linux
-```bash
-curl https://ollama.ai/install.sh | sh
-```
-
-### Windows (WSL2)
-1. Install Windows Subsystem for Linux 2 (WSL2)
-2. Install Ubuntu 20.04+ in WSL2
-3. Install Ollama for Linux (see Linux instructions above)
-
-## Starting Ollama
-
-### Background Service (Recommended)
-```bash
-# macOS (already running)
-# Linux/Windows
-ollama serve
-```
-
-The service will start on `http://localhost:11434` by default.
-
-### Verify Installation
-```bash
-ollama --version
-```
-
-## Downloading Models
-
-Ollama hosts various LLM models optimized for different use cases. Download models based on your needs:
-
-### Recommended Models for Price Scanner Chat
-
-**Fast & Lightweight (4-7GB RAM):**
-```bash
-ollama pull neural-chat
-```
-- **Size**: ~4GB
-- **Speed**: Very fast ⚡⚡⚡
-- **Quality**: Good for chat
-- **Best for**: Budget laptops, quick responses
-
-**Balanced (6-10GB RAM):**
-```bash
-ollama pull mistral
-```
-- **Size**: ~4.1GB
-- **Speed**: Fast ⚡⚡
-- **Quality**: Excellent
-- **Best for**: Most users
-
-**High Quality (10-15GB RAM):**
-```bash
-ollama pull dolphin-mixtral
-```
-- **Size**: ~26GB
-- **Speed**: Moderate ⚡
-- **Quality**: Excellent
-- **Best for**: Powerful machines
-
-**Small & Efficient (2-3GB RAM):**
-```bash
-ollama pull tinyllama
-```
-- **Size**: ~637MB
-- **Speed**: Very fast ⚡⚡⚡
-- **Quality**: Basic
-- **Best for**: Testing/limited hardware
-
-### List Downloaded Models
-```bash
-ollama list
-```
-
-### Remove a Model
-```bash
-ollama rm neural-chat
-```
-
-## Configuring the Price Scanner Chat
-
-### 1. Create `.env.local` file
-Create a `.env.local` file in the project root:
+| Model | Download | Needs ~ | Notes |
+|---|---|---|---|
+| `llama3.2:1b` | 1.3 GB | 3 GB | Fastest. Fine for short chat, weak at reasoning. |
+| `llama3.2` (3B) | 2.0 GB | 4 GB | **Best default.** Good quality, quick. |
+| `phi3` | 2.3 GB | 4 GB | Strong at reasoning for its size. |
+| `mistral` | 4.1 GB | 8 GB | Noticeably better writing, slower. |
+| `llama3.1:8b` | 4.7 GB | 8 GB | Best quality that still fits 16 GB machines. |
+| `qwen2.5:14b` | 9.0 GB | 16 GB | Excellent, needs a well-specced laptop. |
 
 ```bash
-cp .env.example .env.local
+ollama pull llama3.2
+ollama list          # what you have
+ollama rm <model>    # free the disk back
 ```
 
-### 2. Edit Configuration (Optional)
-Customize settings in `.env.local`:
+Switch between installed models any time from Settings — no restart needed.
 
-```env
-# Point to your Ollama server (default is localhost:11434)
-NEXT_PUBLIC_OLLAMA_URL=http://localhost:11434
+## By hardware
 
-# Set your default model (must be installed)
-NEXT_PUBLIC_OLLAMA_MODEL=neural-chat
-```
+| Machine | Start with |
+|---|---|
+| 8 GB RAM (MacBook Air, most laptops) | `llama3.2` |
+| 16 GB RAM | `llama3.1:8b` or `mistral` |
+| 32 GB+ or a discrete GPU | `qwen2.5:14b` |
+| Very tight on RAM or disk | `llama3.2:1b` |
 
-### 3. Run the Application
+Apple Silicon uses the GPU through Metal automatically. NVIDIA cards are used via
+CUDA if the drivers are installed. Neither needs configuration.
+
+## Keeping it responsive
+
+**The first message is always slowest** — that's the model loading into RAM.
+Ollama keeps it there for 5 minutes after the last request; to hold it longer:
+
 ```bash
-npm install
-npm run dev
+OLLAMA_KEEP_ALIVE=30m ollama serve
 ```
 
-Visit `http://localhost:3000`
+**If replies crawl or the machine swaps**, the model is too big for your free RAM.
+Drop a size tier. `llama3.2:1b` runs on almost anything.
 
-## Using the Application
+**If a reply gets cut off**, the app allows 90 seconds per reply. A large model on
+a slow machine can exceed that — use a smaller model, or raise `TIMEOUT_MS` in
+`app/api/chat/route.ts`.
 
-### First Time Setup
-1. Start Ollama: `ollama serve`
-2. Download a model: `ollama pull neural-chat`
-3. Start the app: `npm run dev`
-4. Open browser to `http://localhost:3000`
-5. You should see a green connection indicator ✅
+## Running Ollama elsewhere
 
-### Switching Models at Runtime
-1. Click the ⚙️ Settings button
-2. Look for "🤖 Ollama AI Settings"
-3. Select a different model from the dropdown
-4. Changes apply immediately
+To use a model on another machine on your network, set both the host it binds to
+and the URL the app calls:
 
-### Disable Local AI
-If Ollama is offline or you want to use fallback responses:
-- Uncheck "Use Local AI for Responses" in settings
-- The chat will use pre-written responses instead
+```bash
+# On the machine running Ollama:
+OLLAMA_HOST=0.0.0.0 ollama serve
+
+# In .env.local on the machine running Nova:
+OLLAMA_URL=http://192.168.1.50:11434
+```
+
+Only do this on a network you trust — Ollama has no authentication.
+
+## Why the app doesn't call Ollama from the browser
+
+Ollama rejects cross-origin requests, so a `fetch` from the page to
+`localhost:11434` fails even though both are on your machine. Every call goes
+through the Next.js server instead (`lib/ollamaServer.ts`), which is a normal
+server-to-server request with no CORS involved.
+
+You could instead set `OLLAMA_ORIGINS=http://localhost:3000`, but proxying is
+better anyway: it keeps any search API keys out of the browser bundle.
 
 ## Troubleshooting
 
-### Ollama Connection Failed
-**Error**: "Ollama is offline"
+**`ollama serve` says the address is in use** — it's already running (the macOS
+app starts it in the background). Check with `curl http://127.0.0.1:11434/api/tags`.
 
-**Solutions**:
-```bash
-# 1. Check if Ollama is running
-ollama list
+**Model not found** — pull it first. The name in Settings must match `ollama list`
+exactly, tag included.
 
-# 2. Start Ollama service
-ollama serve
-
-# 3. Verify it's accessible
-curl http://localhost:11434/api/tags
-```
-
-### Model Not Found
-**Error**: "Model not available"
-
-**Solution**:
-```bash
-# Download the model first
-ollama pull neural-chat
-
-# List available models
-ollama list
-```
-
-### Out of Memory
-**Error**: "Allocating X.XGB failed"
-
-**Solutions**:
-1. Use a smaller model:
-   ```bash
-   ollama pull tinyllama  # 637MB
-   ```
-
-2. Close other applications to free up RAM
-
-3. Adjust model settings for less memory:
-   ```bash
-   # Reduce context window
-   OLLAMA_NUM_PREDICT=100
-   ```
-
-### Slow Responses
-**Cause**: Model too large for your hardware
-
-**Solutions**:
-1. Switch to a faster model
-2. Add more RAM or close other apps
-3. Use CPU-only mode (no GPU acceleration needed)
-
-## Performance Tips
-
-### Optimize for Speed
-```bash
-# Use smaller models
-ollama pull neural-chat
-
-# Or tiny models
-ollama pull tinyllama
-```
-
-### Optimize for Quality
-```bash
-# Use higher quality models
-ollama pull mistral
-
-# Or use larger models
-ollama pull dolphin-mixtral
-```
-
-### Enable GPU Acceleration (if available)
-Ollama automatically uses GPU if available:
-- **NVIDIA**: CUDA support included
-- **Apple Silicon**: Metal framework (automatic)
-- **AMD**: ROCm support available
-
-## Model Recommendations by Hardware
-
-| Hardware | RAM | Recommended Model | Speed |
-|----------|-----|-------------------|-------|
-| MacBook Air M1/M2 | 8GB | neural-chat | ⚡⚡⚡ |
-| MacBook Pro | 16GB | mistral | ⚡⚡ |
-| Windows Laptop | 8GB | neural-chat | ⚡⚡⚡ |
-| Gaming PC (RTX) | 12GB+ | dolphin-mixtral | ⚡⚡ |
-| Low-end Laptop | 4GB | tinyllama | ⚡⚡⚡ |
-
-## Advanced Configuration
-
-### Custom Ollama URL
-If running Ollama on a different machine:
-
-```env
-# .env.local
-NEXT_PUBLIC_OLLAMA_URL=http://192.168.1.100:11434
-```
-
-### Model Parameters
-Customize model behavior by editing `lib/ollama.ts`:
-
-```typescript
-const generateResponse = async (prompt: string) => {
-  // Adjust these parameters:
-  temperature: 0.7,      // 0=deterministic, 1=creative
-  top_k: 40,            // Vocabulary size
-  top_p: 0.9,           // Nucleus sampling
-  // Add more...
-};
-```
-
-## Keeping Ollama Updated
-
-```bash
-# macOS
-brew upgrade ollama
-
-# Linux
-curl https://ollama.ai/install.sh | sh
-
-# Or check for updates
-ollama --version
-```
-
-## Privacy & Data
-
-✅ **All processing happens locally**
-- No data sent to external servers
-- Your queries stay on your machine
-- No API keys needed
-- Completely offline capable
-
-## Resources
-
-- **Ollama Website**: https://ollama.ai
-- **Model Library**: https://ollama.ai/library
-- **GitHub**: https://github.com/jmorganca/ollama
-- **Discord Community**: https://discord.gg/ollama
-
-## Quick Start Commands
-
-```bash
-# Download and start in one go
-ollama pull neural-chat
-ollama serve
-
-# In another terminal:
-cd nova-browser
-npm install
-npm run dev
-
-# Visit http://localhost:3000 in your browser
-```
-
-## Performance Benchmarks
-
-Example response times (on MacBook Pro M1, 16GB RAM):
-
-| Model | Model Size | Response Time | Memory Used |
-|-------|-----------|---------------|------------|
-| tinyllama | 637MB | 0.5s | 2GB |
-| neural-chat | 4GB | 2s | 6GB |
-| mistral | 4.1GB | 3s | 8GB |
-| dolphin-mixtral | 26GB | 5s | 12GB |
-
----
-
-**Need help?** Check the main README.md or visit the Ollama GitHub repository.
+**Out of memory during a reply** — close other apps, or use a smaller model. Ollama
+does not swap gracefully.

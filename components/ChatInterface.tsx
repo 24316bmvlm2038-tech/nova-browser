@@ -1,288 +1,273 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChatStore, Message } from '@/store/useChatStore';
-import { scanPrice } from '@/lib/priceScanner';
-import { generateResponse, checkOllamaStatus } from '@/lib/ollama';
+import { fetchOllamaStatus, scanPrice, sendChat } from '@/lib/api';
+import { extractProductName, isPriceQuery } from '@/lib/searchIntent';
 import ChatMessage from './ChatMessage';
 import SettingsPanel from './SettingsPanel';
+
+const EXAMPLES = [
+  'How much is an iPhone 15 Pro?',
+  'What do people sell a PS5 for used?',
+  'Search for the latest Framework laptop reviews',
+];
+
+const newId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 export default function ChatInterface() {
   const {
     messages,
     isLoading,
-    addMessage,
-    clearMessages,
-    setLoading,
-    setOllamaConnected,
+    statusText,
     ollamaConnected,
     selectedModel,
     scannerConfig,
+    addMessage,
+    clearMessages,
+    setLoading,
+    setStatusText,
+    setOllamaConnected,
+    setAvailableModels,
+    setSelectedModel,
   } = useChatStore();
+
   const [inputValue, setInputValue] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const scrollToBottom = () => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, [messages, statusText]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Check Ollama connection on mount
-  useEffect(() => {
-    const checkConnection = async () => {
-      const connected = await checkOllamaStatus();
-      setOllamaConnected(connected);
-    };
-    checkConnection();
-  }, [setOllamaConnected]);
-
-  const isScannableQuery = (query: string): boolean => {
-    const scanKeywords = [
-      'price',
-      'cost',
-      'how much',
-      'scan',
-      'check',
-      'find',
-      'what is',
-      'what does',
-    ];
-    return scanKeywords.some((keyword) =>
-      query.toLowerCase().includes(keyword)
+  const refreshStatus = useCallback(async () => {
+    const status = await fetchOllamaStatus();
+    setOllamaConnected(status.connected);
+    setAvailableModels(status.models);
+    // Adopt a model only if the user hasn't chosen one, or theirs is now gone.
+    setSelectedModel(
+      useChatStore.getState().selectedModel &&
+        status.models.includes(useChatStore.getState().selectedModel)
+        ? useChatStore.getState().selectedModel
+        : status.models.includes(status.defaultModel)
+          ? status.defaultModel
+          : (status.models[0] ?? '')
     );
-  };
+  }, [setOllamaConnected, setAvailableModels, setSelectedModel]);
 
-  const generateAIResponse = async (userQuery: string): Promise<string> => {
-    if (!scannerConfig.useLocalAI || !ollamaConnected) {
-      // Fallback responses when Ollama is not available
-      const responses = [
-        'I can help you find the best prices! Try asking me "What is the price of iPhone 15?" or "Scan MacBook Pro prices".',
-        'Feel free to ask me about prices for any product. I can check multiple sellers and show you the best deals!',
-        'To get started, tell me what product you want to check the price for. For example: "What is the price of AirPods Pro?"',
-        'I specialize in price scanning! Ask me about the cost of any item and I\'ll find it for you across different sellers.',
-      ];
-      return responses[Math.floor(Math.random() * responses.length)];
-    }
+  useEffect(() => {
+    refreshStatus();
+  }, [refreshStatus]);
 
-    try {
-      const systemPrompt = `You are a helpful price scanner AI assistant. You help users find product prices across multiple sellers.
-Be concise, friendly, and helpful. If asked about prices, you can say you'll scan for that product.
-Keep responses to 1-2 sentences for general chat.`;
-
-      const prompt = `${systemPrompt}\n\nUser: ${userQuery}\nAssistant:`;
-      const response = await generateResponse(prompt, selectedModel);
-      return response;
-    } catch (error) {
-      console.error('Error generating response:', error);
-      return 'I encountered an error connecting to my AI engine. Please check if Ollama is running.';
-    }
-  };
+  const pushAssistant = (content: string, extra: Partial<Message> = {}) =>
+    addMessage({
+      id: newId(),
+      role: 'assistant',
+      content,
+      timestamp: new Date(),
+      ...extra,
+    });
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+    const trimmed = inputValue.trim();
+    if (!trimmed || isLoading) return;
 
-    const userMessage: Message = {
-      id: Math.random().toString(),
+    addMessage({
+      id: newId(),
       role: 'user',
-      content: inputValue,
+      content: trimmed,
       timestamp: new Date(),
-    };
-
-    addMessage(userMessage);
+    });
     setInputValue('');
     setLoading(true);
 
+    // Snapshot the history before this turn so the model sees prior context.
+    const history = messages.slice(-6).map(({ role, content }) => ({ role, content }));
+
     try {
-      // Check if the message is asking for price scanning
-      if (isScannableQuery(inputValue)) {
-        // Extract item name from the query
-        const itemName = inputValue
-          .replace(/(?:price|cost|scan|check|find|of|for|what is)\s+/gi, '')
-          .trim();
-
-        if (itemName.length > 0) {
-          // Scan for price
-          const priceData = await scanPrice(itemName);
-
-          // Generate AI response about the scan
-          let responseContent = `I found price information for "${itemName}". `;
-          if (scannerConfig.useLocalAI && ollamaConnected) {
-            const aiComment = await generateAIResponse(
-              `Provide a brief comment about the price of ${itemName} which is around $${Math.round(
-                priceData.sources.reduce((sum, s) => sum + s.price, 0) /
-                  priceData.sources.length
-              )}.`
-            );
-            responseContent += aiComment;
-          } else {
-            responseContent += `The average price across major retailers is ${new Intl.NumberFormat(
-              'en-US',
-              {
-                style: 'currency',
-                currency: 'USD',
-              }
-            ).format(
-              Math.round(
-                priceData.sources.reduce((sum, s) => sum + s.price, 0) /
-                  priceData.sources.length
-              )
-            )}.`;
-          }
-          responseContent += ' I\'ve listed all available sellers and their prices below.';
-
-          const assistantMessage: Message = {
-            id: Math.random().toString(),
-            role: 'assistant',
-            content: responseContent,
-            priceData,
-            timestamp: new Date(),
-          };
-
-          addMessage(assistantMessage);
-        }
+      if (isPriceQuery(trimmed) && scannerConfig.searchMode !== 'never') {
+        await runPriceScan(trimmed, history);
       } else {
-        // Regular chat response using AI
-        const responseContent = await generateAIResponse(inputValue);
-        const assistantMessage: Message = {
-          id: Math.random().toString(),
-          role: 'assistant',
-          content: responseContent,
-          timestamp: new Date(),
-        };
-
-        addMessage(assistantMessage);
+        await runChat(trimmed, history);
       }
     } catch (error) {
-      console.error('Error processing message:', error);
-      const errorMessage: Message = {
-        id: Math.random().toString(),
-        role: 'assistant',
-        content:
-          'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date(),
-      };
-      addMessage(errorMessage);
+      pushAssistant(
+        error instanceof Error ? error.message : 'Something went wrong.',
+        { error: true }
+      );
     } finally {
       setLoading(false);
+      setStatusText('');
       inputRef.current?.focus();
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
+  const runPriceScan = async (
+    message: string,
+    history: { role: string; content: string }[]
+  ) => {
+    const product = extractProductName(message) || message;
+    setStatusText(`Searching the web for “${product}” prices…`);
+
+    let priceData;
+    try {
+      priceData = await scanPrice(product, scannerConfig);
+    } catch (error) {
+      // No prices found is a normal outcome, not a crash — say what happened
+      // and still give the model a chance to answer conversationally.
+      pushAssistant(
+        error instanceof Error ? error.message : 'The price scan failed.',
+        { error: true }
+      );
+      return;
+    }
+
+    if (priceData.sources.length === 0) {
+      pushAssistant(
+        `I found prices for “${product}”, but your filters hid all of them. Re-enable new or used items in settings.`,
+        { error: true }
+      );
+      return;
+    }
+
+    const summary = describeScan(priceData);
+
+    if (!ollamaConnected) {
+      pushAssistant(summary, { priceData });
+      return;
+    }
+
+    setStatusText('Asking the model to summarize…');
+    try {
+      const { reply } = await sendChat(
+        `${summary}\n\nIn two sentences, tell the user what this means — whether it's a good time to buy and where the best deal is. Do not invent prices beyond the ones above.`,
+        selectedModel,
+        history,
+        'never'
+      );
+      pushAssistant(reply || summary, { priceData });
+    } catch {
+      // The scan is the valuable part; a model failure shouldn't lose it.
+      pushAssistant(summary, { priceData });
+    }
+  };
+
+  const runChat = async (
+    message: string,
+    history: { role: string; content: string }[]
+  ) => {
+    if (!ollamaConnected) {
+      pushAssistant(
+        'Ollama is not running, so I can only scan prices right now. Start it with `ollama serve`, then click the status dot to reconnect.',
+        { error: true }
+      );
+      return;
+    }
+
+    setStatusText(
+      scannerConfig.searchMode === 'never'
+        ? 'Thinking…'
+        : 'Searching the web and thinking…'
+    );
+
+    const { reply, sources, searchError } = await sendChat(
+      message,
+      selectedModel,
+      history,
+      scannerConfig.searchMode
+    );
+
+    pushAssistant(
+      searchError ? `${reply}\n\n_(Web search failed: ${searchError})_` : reply,
+      { citations: sources }
+    );
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
       handleSendMessage();
     }
   };
 
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-gray-950">
-      {/* Header */}
-      <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            💰 Price Scanner Chat
+      <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+            Nova
           </h1>
-          <div className="flex items-center gap-2 text-sm">
-            <div
+          <button
+            onClick={refreshStatus}
+            className="flex items-center gap-2 text-xs px-2 py-1 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            title="Click to re-check the connection"
+          >
+            <span
               className={`w-2 h-2 rounded-full ${
                 ollamaConnected ? 'bg-green-500' : 'bg-red-500'
               }`}
             />
             <span className="text-gray-600 dark:text-gray-400">
-              {ollamaConnected ? `Ollama (${selectedModel})` : 'Ollama Offline'}
+              {ollamaConnected ? selectedModel || 'Ollama' : 'Ollama offline'}
             </span>
-          </div>
+          </button>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setSettingsOpen(true)}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
             title="Settings"
+            aria-label="Settings"
           >
-            <svg
-              className="w-6 h-6 text-gray-600 dark:text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
+            <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
           {messages.length > 0 && (
             <button
-              onClick={() => clearMessages()}
+              onClick={clearMessages}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-              title="Clear Chat"
+              title="Clear chat"
+              aria-label="Clear chat"
             >
-              <svg
-                className="w-6 h-6 text-gray-600 dark:text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
+              <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
           )}
         </div>
-      </div>
+      </header>
 
-      {/* Messages Container */}
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="text-6xl mb-4">💰</div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Welcome to Price Scanner
+            <div className="text-5xl mb-4">🔎</div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Ask me anything, or ask what something costs
             </h2>
             <p className="text-gray-600 dark:text-gray-400 max-w-md mb-8">
-              Ask me about prices for any product! I'll scan multiple sellers
-              and show you the best deals and price comparisons.
+              I search the live web from your laptop and compare what sellers are
+              asking, new and used.
             </p>
-            <div className="space-y-2 text-sm">
-              <p className="text-gray-500 dark:text-gray-400">
-                💡 Try asking:
-              </p>
-              <div className="space-y-2">
-                {[
-                  'What is the price of iPhone 15?',
-                  'Scan prices for MacBook Pro 16',
-                  'Check AirPods Pro cost',
-                ].map((example, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setInputValue(example);
-                      inputRef.current?.focus();
-                    }}
-                    className="block text-primary hover:underline font-medium"
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-col gap-2">
+              {EXAMPLES.map((example) => (
+                <button
+                  key={example}
+                  onClick={() => {
+                    setInputValue(example);
+                    inputRef.current?.focus();
+                  }}
+                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:border-primary hover:text-primary transition-colors"
+                >
+                  {example}
+                </button>
+              ))}
             </div>
           </div>
         ) : (
@@ -290,64 +275,82 @@ Keep responses to 1-2 sentences for general chat.`;
             {messages.map((message) => (
               <ChatMessage key={message.id} message={message} />
             ))}
+            {statusText && (
+              <div className="flex gap-4 px-4 py-6">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-teal-500" />
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  {statusText}
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
-      {/* Input Area */}
       <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-        <div className="max-w-4xl mx-auto flex gap-3">
-          <input
+        <div className="max-w-3xl mx-auto flex gap-3 items-end">
+          <textarea
             ref={inputRef}
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask me about prices... (e.g., 'What is the price of iPhone 15?')"
+            onChange={(event) => setInputValue(event.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={1}
+            placeholder="Ask a question, or “how much is a Steam Deck?”"
             disabled={isLoading}
-            className="flex-1 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 resize-none"
+            className="flex-1 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 resize-none max-h-40"
           />
           <button
             onClick={handleSendMessage}
             disabled={isLoading || !inputValue.trim()}
-            className="px-4 py-3 rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
+            className="px-4 py-3 rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            aria-label="Send message"
           >
             {isLoading ? (
-              <>
-                <svg
-                  className="w-5 h-5 animate-spin"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-              </>
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
             ) : (
-              <>
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5.951-1.429 5.951 1.429a1 1 0 001.169-1.409l-7-14z" />
-                </svg>
-              </>
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5.951-1.429 5.951 1.429a1 1 0 001.169-1.409l-7-14z" />
+              </svg>
             )}
           </button>
         </div>
       </div>
 
-      {/* Settings Panel */}
-      <SettingsPanel
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }
+
+const describeScan = (priceData: {
+  itemName: string;
+  currency: string;
+  averagePrice: number;
+  lowestPrice: number;
+  highestPrice: number;
+  newPrice: number;
+  usedPrice: number;
+  sources: { platform: string; price: number; condition: string }[];
+}): string => {
+  const money = (value: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: priceData.currency,
+      maximumFractionDigits: 0,
+    }).format(value);
+
+  const lines = [
+    `Here's what I found for "${priceData.itemName}" across ${priceData.sources.length} seller${priceData.sources.length === 1 ? '' : 's'}:`,
+    `• Average asking price: ${money(priceData.averagePrice)}`,
+    `• Range: ${money(priceData.lowestPrice)} – ${money(priceData.highestPrice)}`,
+  ];
+
+  if (priceData.newPrice > 0) lines.push(`• New, typically: ${money(priceData.newPrice)}`);
+  if (priceData.usedPrice > 0) lines.push(`• Used, typically: ${money(priceData.usedPrice)}`);
+
+  return lines.join('\n');
+};
