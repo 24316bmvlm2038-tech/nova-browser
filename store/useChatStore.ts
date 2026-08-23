@@ -24,27 +24,35 @@ export interface Message {
 export interface ChatState {
   messages: Message[];
   isLoading: boolean;
+  ollamaConnected: boolean;
+  selectedModel: string;
   scannerConfig: {
     showNewItems: boolean;
     showUsedItems: boolean;
     currency: 'USD' | 'EUR' | 'GBP';
     maxResults: number;
+    useLocalAI: boolean;
   };
   addMessage: (message: Message) => void;
   removeMessage: (id: string) => void;
   clearMessages: () => void;
   setLoading: (loading: boolean) => void;
+  setOllamaConnected: (connected: boolean) => void;
+  setSelectedModel: (model: string) => void;
   updateScannerConfig: (config: Partial<ChatState['scannerConfig']>) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   isLoading: false,
+  ollamaConnected: false,
+  selectedModel: 'neural-chat',
   scannerConfig: {
     showNewItems: true,
     showUsedItems: true,
     currency: 'USD',
     maxResults: 5,
+    useLocalAI: true,
   },
   addMessage: (message) =>
     set((state) => ({
@@ -56,6 +64,8 @@ export const useChatStore = create<ChatState>((set) => ({
     })),
   clearMessages: () => set({ messages: [] }),
   setLoading: (loading) => set({ isLoading: loading }),
+  setOllamaConnected: (connected) => set({ ollamaConnected: connected }),
+  setSelectedModel: (model) => set({ selectedModel: model }),
   updateScannerConfig: (config) =>
     set((state) => ({
       scannerConfig: { ...state.scannerConfig, ...config },

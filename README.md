@@ -8,12 +8,16 @@ A modern ChatGPT-style web application that scans product prices across multiple
 - 💬 **ChatGPT-like Interface** - Intuitive chat UI for seamless interaction
 - 💰 **Price Scanning** - Automatically detect price inquiries and fetch data
 - 🔍 **Multi-Seller Comparison** - Compare prices across multiple platforms
+- 🤖 **Ollama AI Integration** - Run AI locally on your laptop, no external APIs
 - ⚙️ **Customizable Settings** - Adjust scanner behavior with Zustand state management
   - Toggle new/used item display
   - Choose currency (USD, EUR, GBP)
   - Set maximum result count
+  - Select AI models dynamically
+  - Toggle local AI on/off
 - 🌓 **Dark Mode Support** - Built-in light and dark theme support
 - 📱 **Responsive Design** - Works seamlessly on desktop and mobile
+- 🔐 **Complete Privacy** - All processing happens locally, no data sent to servers
 
 ## Tech Stack
 
@@ -46,23 +50,44 @@ nova-browser/
 
 ## Getting Started
 
-### Installation
+### Quick Start with Ollama
 
+#### 1. Install Ollama
+Download and install from [ollama.ai](https://ollama.ai)
+
+#### 2. Download an AI Model
+```bash
+ollama pull neural-chat
+```
+
+#### 3. Start Ollama
+```bash
+ollama serve
+```
+
+#### 4. Run the App
 ```bash
 # Install dependencies
 npm install
 
 # Start development server
 npm run dev
+```
 
+Open [http://localhost:3000](http://localhost:3000) in your browser. The app will auto-detect Ollama and show ✅ when connected.
+
+### Full Ollama Setup Guide
+See [OLLAMA_SETUP.md](./OLLAMA_SETUP.md) for detailed instructions, model recommendations, troubleshooting, and performance tips.
+
+### Production Build
+
+```bash
 # Build for production
-npm build
+npm run build
 
 # Start production server
 npm start
 ```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Usage
 
@@ -97,11 +122,46 @@ addMessage(message: Message) => void
 // Update scanner configuration
 updateScannerConfig(config: Partial<ChatState['scannerConfig']>) => void
 
+// AI and Ollama state
+setOllamaConnected(connected: boolean) => void
+setSelectedModel(model: string) => void
+
 // Clear all messages
 clearMessages() => void
 ```
 
-All state is centralized in `store/useChatStore.ts` and easily customizable.
+All state is centralized in `store/useChatStore.ts` and easily customizable. The store tracks:
+- Chat messages and conversation history
+- Ollama connection status
+- Selected AI model
+- Scanner settings (currency, filters, etc.)
+- Local AI toggle state
+
+## Ollama AI Integration
+
+The app integrates with Ollama for local AI inference:
+
+### How It Works
+1. **Auto-Detection**: App checks if Ollama is running on startup
+2. **Model Management**: List and switch between installed models in settings
+3. **Dual Mode**: Works with or without Ollama (fallback responses when offline)
+4. **Smart Prompting**: Sends context-aware prompts for price analysis
+
+### Supported Models
+- **neural-chat** (4GB) - Recommended, fast and accurate
+- **mistral** (4GB) - Excellent quality
+- **dolphin-mixtral** (26GB) - Highest quality
+- **tinyllama** (637MB) - Ultra-lightweight
+- Any Ollama-compatible model
+
+### Configuration
+```env
+# .env.local
+NEXT_PUBLIC_OLLAMA_URL=http://localhost:11434
+NEXT_PUBLIC_OLLAMA_MODEL=neural-chat
+```
+
+See [OLLAMA_SETUP.md](./OLLAMA_SETUP.md) for detailed configuration.
 
 ## API Integration
 

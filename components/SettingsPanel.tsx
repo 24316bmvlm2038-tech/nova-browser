@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useChatStore } from '@/store/useChatStore';
+import { listAvailableModels, checkOllamaStatus } from '@/lib/ollama';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -7,8 +8,32 @@ interface SettingsPanelProps {
 }
 
 export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
-  const { scannerConfig, updateScannerConfig } = useChatStore();
+  const { scannerConfig, updateScannerConfig, setOllamaConnected, selectedModel, setSelectedModel, ollamaConnected } = useChatStore();
   const [localConfig, setLocalConfig] = useState(scannerConfig);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadModels();
+    }
+  }, [isOpen]);
+
+  const loadModels = async () => {
+    setLoading(true);
+    try {
+      const connected = await checkOllamaStatus();
+      setOllamaConnected(connected);
+      if (connected) {
+        const models = await listAvailableModels();
+        setAvailableModels(models);
+      }
+    } catch (error) {
+      console.error('Error loading models:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = () => {
     updateScannerConfig(localConfig);
@@ -25,6 +50,63 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         </h2>
 
         <div className="space-y-4">
+          {/* Ollama Settings */}
+          <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">
+              🤖 Ollama AI Settings
+            </h3>
+
+            <div className="mb-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+              <p className="text-xs text-blue-800 dark:text-blue-300">
+                {ollamaConnected ? (
+                  <>✅ Ollama is connected and ready to use</>
+                ) : (
+                  <>❌ Ollama is offline. Make sure to start it with: <code className="bg-white dark:bg-gray-800 px-1 rounded">ollama serve</code></>
+                )}
+              </p>
+            </div>
+
+            {ollamaConnected && availableModels.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  AI Model
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
+                >
+                  {availableModels.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="mt-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={localConfig.useLocalAI}
+                  onChange={(e) =>
+                    setLocalConfig({
+                      ...localConfig,
+                      useLocalAI: e.target.checked,
+                    })
+                  }
+                  disabled={!ollamaConnected}
+                  className="w-4 h-4 text-primary rounded focus:ring-2 focus:ring-primary disabled:opacity-50"
+                />
+                <span className="text-gray-700 dark:text-gray-300">
+                  Use Local AI for Responses
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* Scanner Settings */}
           <div>
             <label className="flex items-center gap-3 cursor-pointer">
               <input

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useChatStore, Message } from '@/store/useChatStore';
 import { scanPrice } from '@/lib/priceScanner';
+import { generateResponse, checkOllamaStatus } from '@/lib/ollama';
 import ChatMessage from './ChatMessage';
 import SettingsPanel from './SettingsPanel';
 
@@ -13,6 +14,10 @@ export default function ChatInterface() {
     addMessage,
     clearMessages,
     setLoading,
+    setOllamaConnected,
+    ollamaConnected,
+    selectedModel,
+    scannerConfig,
   } = useChatStore();
   const [inputValue, setInputValue] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -26,6 +31,15 @@ export default function ChatInterface() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Check Ollama connection on mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      const connected = await checkOllamaStatus();
+      setOllamaConnected(connected);
+    };
+    checkConnection();
+  }, [setOllamaConnected]);
 
   const isScannableQuery = (query: string): boolean => {
     const scanKeywords = [
@@ -41,6 +55,32 @@ export default function ChatInterface() {
     return scanKeywords.some((keyword) =>
       query.toLowerCase().includes(keyword)
     );
+  };
+
+  const generateAIResponse = async (userQuery: string): Promise<string> => {
+    if (!scannerConfig.useLocalAI || !ollamaConnected) {
+      // Fallback responses when Ollama is not available
+      const responses = [
+        'I can help you find the best prices! Try asking me "What is the price of iPhone 15?" or "Scan MacBook Pro prices".',
+        'Feel free to ask me about prices for any product. I can check multiple sellers and show you the best deals!',
+        'To get started, tell me what product you want to check the price for. For example: "What is the price of AirPods Pro?"',
+        'I specialize in price scanning! Ask me about the cost of any item and I\'ll find it for you across different sellers.',
+      ];
+      return responses[Math.floor(Math.random() * responses.length)];
+    }
+
+    try {
+      const systemPrompt = `You are a helpful price scanner AI assistant. You help users find product prices across multiple sellers.
+Be concise, friendly, and helpful. If asked about prices, you can say you'll scan for that product.
+Keep responses to 1-2 sentences for general chat.`;
+
+      const prompt = `${systemPrompt}\n\nUser: ${userQuery}\nAssistant:`;
+      const response = await generateResponse(prompt, selectedModel);
+      return response;
+    } catch (error) {
+      console.error('Error generating response:', error);
+      return 'I encountered an error connecting to my AI engine. Please check if Ollama is running.';
+    }
   };
 
   const handleSendMessage = async () => {
@@ -69,10 +109,18 @@ export default function ChatInterface() {
           // Scan for price
           const priceData = await scanPrice(itemName);
 
-          const assistantMessage: Message = {
-            id: Math.random().toString(),
-            role: 'assistant',
-            content: `I found price information for "${itemName}". The average price across major retailers is ${new Intl.NumberFormat(
+          // Generate AI response about the scan
+          let responseContent = `I found price information for "${itemName}". `;
+          if (scannerConfig.useLocalAI && ollamaConnected) {
+            const aiComment = await generateAIResponse(
+              `Provide a brief comment about the price of ${itemName} which is around $${Math.round(
+                priceData.sources.reduce((sum, s) => sum + s.price, 0) /
+                  priceData.sources.length
+              )}.`
+            );
+            responseContent += aiComment;
+          } else {
+            responseContent += `The average price across major retailers is ${new Intl.NumberFormat(
               'en-US',
               {
                 style: 'currency',
@@ -83,7 +131,14 @@ export default function ChatInterface() {
                 priceData.sources.reduce((sum, s) => sum + s.price, 0) /
                   priceData.sources.length
               )
-            )}. I've listed all available sellers and their prices below.`,
+            )}.`;
+          }
+          responseContent += ' I\'ve listed all available sellers and their prices below.';
+
+          const assistantMessage: Message = {
+            id: Math.random().toString(),
+            role: 'assistant',
+            content: responseContent,
             priceData,
             timestamp: new Date(),
           };
@@ -91,19 +146,12 @@ export default function ChatInterface() {
           addMessage(assistantMessage);
         }
       } else {
-        // Regular chat response
-        const responses = [
-          'I can help you find the best prices! Try asking me "What is the price of iPhone 15?" or "Scan MacBook Pro prices".',
-          'Feel free to ask me about prices for any product. I can check multiple sellers and show you the best deals!',
-          'To get started, tell me what product you want to check the price for. For example: "What is the price of AirPods Pro?"',
-          'I specialize in price scanning! Ask me about the cost of any item and I\'ll find it for you across different sellers.',
-        ];
-
+        // Regular chat response using AI
+        const responseContent = await generateAIResponse(inputValue);
         const assistantMessage: Message = {
           id: Math.random().toString(),
           role: 'assistant',
-          content:
-            responses[Math.floor(Math.random() * responses.length)],
+          content: responseContent,
           timestamp: new Date(),
         };
 
@@ -136,9 +184,21 @@ export default function ChatInterface() {
     <div className="flex flex-col h-screen bg-white dark:bg-gray-950">
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          💰 Price Scanner Chat
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            💰 Price Scanner Chat
+          </h1>
+          <div className="flex items-center gap-2 text-sm">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                ollamaConnected ? 'bg-green-500' : 'bg-red-500'
+              }`}
+            />
+            <span className="text-gray-600 dark:text-gray-400">
+              {ollamaConnected ? `Ollama (${selectedModel})` : 'Ollama Offline'}
+            </span>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSettingsOpen(true)}
