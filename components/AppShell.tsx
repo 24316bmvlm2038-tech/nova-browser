@@ -5,7 +5,6 @@ import { useChatStore } from '@/store/useChatStore';
 import { fetchAuth } from '@/lib/api';
 import type { LegalDoc } from '@/lib/legal';
 import AuthScreen from './AuthScreen';
-import CookieNotice from './CookieNotice';
 import LegalSheet from './LegalSheet';
 import BottomNav from './BottomNav';
 import ChatInterface from './ChatInterface';
@@ -47,7 +46,6 @@ export default function AppShell() {
         <Pane show={activeTab === 'profile'}><ProfileTab onOpenLegal={setLegal} /></Pane>
       </div>
       <BottomNav />
-      <CookieNotice onOpenLegal={setLegal} />
       <LegalSheet doc={legal} onClose={() => setLegal(null)} onOpen={setLegal} />
     </div>
   );

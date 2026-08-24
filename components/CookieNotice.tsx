@@ -40,13 +40,10 @@ export default function CookieNotice({ onOpenLegal }: CookieNoticeProps) {
   if (!show) return null;
 
   return (
-    // Anchored to the top: at the bottom it sat over the composer's own
-    // controls and the tab bar, blocking both until dismissed.
-    <div
-      className="fixed inset-x-0 top-0 z-40 p-3 pointer-events-none"
-      style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
-    >
-      <div className="pointer-events-auto max-w-md mx-auto flex items-start gap-3 p-3.5 rounded-xl bg-gray-900 dark:bg-gray-800 text-white shadow-lg border border-white/10">
+    // In normal flow on the signed-out screen. Floating it inside the app
+    // covered the header at the top and the composer at the bottom.
+    <div className="mt-6">
+      <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-gray-900 dark:bg-surface-dark text-white">
         <p className="text-[13px] leading-relaxed flex-1">
           This app sets one cookie, to keep you signed in. No analytics, no advertising, no
           tracking.{' '}
@@ -56,7 +53,7 @@ export default function CookieNotice({ onOpenLegal }: CookieNoticeProps) {
         </p>
         <button
           onClick={dismiss}
-          className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-white text-gray-900 text-[13px] font-semibold"
+          className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-white text-gray-900 text-[13px] font-semibold"
         >
           Got it
         </button>

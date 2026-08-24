@@ -51,6 +51,7 @@ export default function ChatInterface() {
     setAvailableModels,
     setSelectedModel,
     setLiveSources,
+    updateScannerConfig,
   } = useChatStore();
 
   const [inputValue, setInputValue] = useState('');
@@ -337,30 +338,26 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-950">
-      <header className="flex-shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight leading-none">
-            Can Ai
-          </h1>
-          <button
-            onClick={refreshStatus}
-            className="flex items-center gap-1.5 mt-1 text-[11px] text-gray-500 dark:text-gray-400 hover:text-primary transition-colors"
-            title="Click to re-check the connection"
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                ollamaConnected ? 'bg-primary' : 'bg-amber-500'
-              }`}
-            />
-            {ollamaConnected ? selectedModel || 'Ollama' : 'Ollama offline'}
-          </button>
-        </div>
+    <div className="flex flex-col h-full bg-ground-light dark:bg-ground-dark">
+      <header className="flex-shrink-0 px-4 py-3 flex items-center justify-between gap-4">
+        <button
+          onClick={refreshStatus}
+          className="flex items-center gap-2 px-1 py-1 rounded-full text-[15px] text-gray-900 dark:text-white"
+          title="Re-check the connection"
+        >
+          <span className="font-semibold">Can Ai</span>
+          <span className="text-gray-400 dark:text-gray-500 font-normal">
+            {ollamaConnected ? selectedModel || 'Ollama' : 'offline'}
+          </span>
+          <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
 
         <div className="flex items-center gap-1">
           <button
             onClick={() => setSettingsOpen(true)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            className="w-9 h-9 grid place-items-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             title="Settings"
             aria-label="Settings"
           >
@@ -372,7 +369,7 @@ export default function ChatInterface() {
           {messages.length > 0 && (
             <button
               onClick={clearMessages}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              className="w-9 h-9 grid place-items-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               title="Clear chat"
               aria-label="Clear chat"
             >
@@ -386,27 +383,19 @@ export default function ChatInterface() {
 
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="flex flex-col justify-center h-full px-5 max-w-lg mx-auto w-full">
-            <h2 className="text-[26px] leading-tight font-bold text-gray-900 dark:text-white tracking-tight mb-2">
+          <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+            <span
+              aria-hidden="true"
+              className="block w-11 h-11 rounded-[14px] bg-primary mb-5"
+              style={{
+                // A soft inner glow rather than a flat block.
+                backgroundImage:
+                  'radial-gradient(120% 120% at 30% 20%, rgba(255,255,255,.45), transparent 60%)',
+              }}
+            />
+            <h2 className="text-hero font-normal text-gray-900 dark:text-white text-balance">
               What can I do for you?
             </h2>
-            <p className="text-[15px] text-gray-500 dark:text-gray-400 mb-6">
-              Everything runs on your own machine.
-            </p>
-            <div className="flex flex-col gap-2">
-              {EXAMPLES.map((example) => (
-                <button
-                  key={example}
-                  onClick={() => {
-                    setInputValue(example);
-                    inputRef.current?.focus();
-                  }}
-                  className="text-left px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-[14px] text-gray-700 dark:text-gray-300 hover:border-primary hover:text-primary transition-colors"
-                >
-                  {example}
-                </button>
-              ))}
-            </div>
           </div>
         ) : (
           <div className="py-4">
@@ -427,8 +416,8 @@ export default function ChatInterface() {
         )}
       </div>
 
-      <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-3">
-        <div className="max-w-2xl mx-auto flex items-end gap-1 p-1.5 pl-2 rounded-[22px] border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus-within:border-primary transition-colors">
+      <div className="flex-shrink-0 px-3 pb-3 pt-1">
+        <div className="max-w-2xl mx-auto rounded-composer bg-white dark:bg-surface-dark shadow-[0_1px_2px_rgba(11,21,18,.06),0_8px_28px_-16px_rgba(11,21,18,.35)] px-3 pt-2.5 pb-2">
           <input
             ref={photoRef}
             type="file"
@@ -436,19 +425,6 @@ export default function ChatInterface() {
             onChange={onPhotoPicked}
             className="hidden"
           />
-          <button
-            onClick={() => photoRef.current?.click()}
-            disabled={isLoading}
-            className="w-9 h-9 flex-shrink-0 grid place-items-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 transition"
-            aria-label="Add a photo"
-            title="Add a photo"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <path d="m21 15-5-5L5 21" />
-            </svg>
-          </button>
           <textarea
             ref={inputRef}
             value={inputValue}
@@ -457,16 +433,43 @@ export default function ChatInterface() {
             rows={1}
             placeholder="Ask anything"
             disabled={isLoading}
-            className="flex-1 min-w-0 bg-transparent py-2.5 text-[15px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none disabled:opacity-50 resize-none max-h-40"
+            className="w-full bg-transparent px-1 py-1.5 text-[16px] leading-relaxed text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none disabled:opacity-50 resize-none max-h-40"
           />
-          {speech.state !== 'unsupported' && (
+
+          {/* Controls live inside the composer, the way the reference apps do. */}
+          <div className="flex items-center gap-1.5 pt-1">
+            <button
+              onClick={() => photoRef.current?.click()}
+              disabled={isLoading}
+              className="w-9 h-9 grid place-items-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-sunk-light dark:hover:bg-sunk-dark disabled:opacity-40 transition"
+              aria-label="Add a photo"
+              title="Add a photo"
+            >
+              <svg className="w-[19px] h-[19px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+
+            <ModeChip
+              active={scannerConfig.searchMode !== 'never'}
+              onClick={() =>
+                updateScannerConfig({
+                  searchMode: scannerConfig.searchMode === 'never' ? 'auto' : 'never',
+                })
+              }
+              label="Search"
+              path="M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16ZM21 21l-4.35-4.35"
+            />
+
+            <span className="flex-1" />
+            {speech.state !== 'unsupported' && (
             <button
               onClick={() => (speech.state === 'listening' ? speech.stop() : speech.start())}
               disabled={isLoading}
               className={`w-9 h-9 flex-shrink-0 grid place-items-center rounded-full transition disabled:opacity-40 ${
                 speech.state === 'listening'
                   ? 'bg-red-500 text-white animate-pulse'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-sunk-light dark:hover:bg-sunk-dark'
               }`}
               aria-label={speech.state === 'listening' ? 'Stop dictating' : 'Dictate'}
               title={speech.state === 'listening' ? 'Stop dictating' : 'Dictate'}
@@ -477,10 +480,10 @@ export default function ChatInterface() {
               </svg>
             </button>
           )}
-          <button
+            <button
             onClick={handleSendMessage}
             disabled={isLoading || !inputValue.trim()}
-            className="w-9 h-9 flex-shrink-0 grid place-items-center rounded-full bg-primary text-white disabled:opacity-30 disabled:cursor-not-allowed transition hover:brightness-110"
+            className="w-9 h-9 flex-shrink-0 grid place-items-center rounded-full bg-primary text-white disabled:opacity-25 disabled:cursor-not-allowed transition hover:brightness-110"
             aria-label="Send message"
           >
             {isLoading ? (
@@ -493,7 +496,8 @@ export default function ChatInterface() {
                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5.951-1.429 5.951 1.429a1 1 0 001.169-1.409l-7-14z" />
               </svg>
             )}
-          </button>
+            </button>
+          </div>
         </div>
 
         {(speech.state === 'listening' || speech.error) && (
@@ -536,6 +540,36 @@ const downscale = (file: File, maxEdge = 1024): Promise<string> =>
     };
     reader.readAsDataURL(file);
   });
+
+/** An inline toggle inside the composer, like DeepSeek's Denken / Suchen. */
+function ModeChip({
+  active,
+  onClick,
+  label,
+  path,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  path: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex items-center gap-1.5 h-9 px-3 rounded-full text-[13px] font-medium transition ${
+        active
+          ? 'bg-primary/10 text-primary'
+          : 'text-gray-500 dark:text-gray-400 hover:bg-sunk-light dark:hover:bg-sunk-dark'
+      }`}
+    >
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+        <path d={path} />
+      </svg>
+      {label}
+    </button>
+  );
+}
 
 const describeDigest = (
   digest: { items: { title: string; source: string; channel?: string; score?: number }[] },

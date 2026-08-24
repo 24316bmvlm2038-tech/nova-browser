@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '@/store/useChatStore';
 import { logIn, resendCode, signUp, verifyEmail } from '@/lib/api';
 import type { LegalDoc } from '@/lib/legal';
+import CookieNotice from './CookieNotice';
 import LegalSheet from './LegalSheet';
 
 type Mode = 'login' | 'signup' | 'verify';
@@ -129,8 +130,9 @@ export default function AuthScreen() {
     }
   };
 
+  // Filled rather than outlined — the reference apps separate by tone, not rules.
   const field =
-    'w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition';
+    'w-full px-4 py-3.5 rounded-2xl bg-white dark:bg-surface-dark text-[16px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary transition shadow-[0_1px_2px_rgba(11,21,18,.05)]';
 
   const canSubmit =
     mode === 'verify'
@@ -140,13 +142,19 @@ export default function AuthScreen() {
         : Boolean(email.trim() && password);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen flex flex-col bg-ground-light dark:bg-ground-dark">
       <div className="flex-1 flex flex-col justify-center px-6 py-10 max-w-sm w-full mx-auto">
         <div className="mb-7">
-          <div className="w-12 h-12 rounded-2xl bg-primary grid place-items-center mb-4">
+          <div
+            className="w-12 h-12 rounded-2xl bg-primary grid place-items-center mb-5"
+            style={{
+              backgroundImage:
+                'radial-gradient(120% 120% at 30% 20%, rgba(255,255,255,.4), transparent 60%)',
+            }}
+          >
             <span className="text-white text-xl font-bold">C</span>
           </div>
-          <h1 className="text-[26px] leading-tight font-bold text-gray-900 dark:text-white tracking-tight">
+          <h1 className="text-[30px] leading-[1.15] font-normal text-gray-900 dark:text-white tracking-[-0.02em] text-balance">
             {mode === 'verify'
               ? 'Check your email'
               : mode === 'signup'
@@ -302,10 +310,8 @@ export default function AuthScreen() {
                   );
                 }
               }}
-              className={`flex items-center justify-center gap-2.5 w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 font-medium text-gray-700 dark:text-gray-200 transition ${
-                googleEnabled
-                  ? 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                  : 'opacity-50 cursor-not-allowed'
+              className={`flex items-center justify-center gap-2.5 w-full px-4 py-3.5 rounded-2xl bg-white dark:bg-surface-dark text-[16px] font-medium text-gray-800 dark:text-gray-100 shadow-[0_1px_2px_rgba(11,21,18,.05)] transition ${
+                googleEnabled ? 'hover:brightness-95' : 'opacity-50 cursor-not-allowed'
               }`}
             >
               <svg className="w-[18px] h-[18px]" viewBox="0 0 18 18" aria-hidden="true">
@@ -331,7 +337,7 @@ export default function AuthScreen() {
               <ul className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800 flex flex-col gap-3.5">
                 {CAPABILITIES.map((item) => (
                   <li key={item.title} className="flex gap-3">
-                    <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary/10 grid place-items-center">
+                    <span className="flex-shrink-0 w-9 h-9 rounded-xl bg-primary/10 grid place-items-center">
                       <svg
                         className="w-[17px] h-[17px] text-primary"
                         viewBox="0 0 24 24"
@@ -357,6 +363,8 @@ export default function AuthScreen() {
                 ))}
               </ul>
             )}
+
+            {mode === 'login' && <CookieNotice onOpenLegal={setLegal} />}
 
             {emailDelivery === 'console' && mode === 'signup' && (
               <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-5">
@@ -400,7 +408,7 @@ function Submit({
     <button
       type="submit"
       disabled={busy || disabled}
-      className="px-4 py-3 rounded-xl bg-primary text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition hover:brightness-110"
+      className="px-4 py-3.5 rounded-2xl bg-primary text-white text-[16px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition hover:brightness-110"
     >
       {busy ? 'Working…' : children}
     </button>

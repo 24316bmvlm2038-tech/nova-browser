@@ -23,15 +23,20 @@ body {
 }
 
 body {
-  background: #fff;
-  color: #0d0d0d;
+  background: #f7f8f8;
+  color: #0b1512;
 }
 
 @media (prefers-color-scheme: dark) {
   body {
-    background: #0d0d0d;
-    color: #ececf1;
+    background: #0d100f;
+    color: #e8efec;
   }
+}
+
+/* Long headlines shouldn't leave one orphaned word on the last line. */
+.text-balance {
+  text-wrap: balance;
 }
 
 /* Scrollbar styling */

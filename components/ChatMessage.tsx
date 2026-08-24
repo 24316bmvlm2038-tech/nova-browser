@@ -57,15 +57,16 @@ export default function ChatMessage({ message }: ChatMessageProps) {
 
       <div className={`flex flex-col gap-2.5 min-w-0 flex-1 ${isUser ? 'items-end' : 'items-start'}`}>
         <div
-          className={`px-4 py-2.5 ${
+          className={`${
             isUser
-              ? 'bg-primary text-white rounded-[18px] rounded-br-md max-w-[85%]'
+              ? 'px-4 py-2.5 bg-primary text-white rounded-[20px] rounded-br-lg max-w-[85%]'
               : message.error
-                ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-800 rounded-[18px] rounded-bl-md'
-                : 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-800 rounded-[18px] rounded-bl-md'
+                ? 'px-4 py-2.5 bg-amber-50 dark:bg-amber-900/25 text-amber-900 dark:text-amber-200 rounded-[20px] rounded-bl-lg'
+                : // Assistant prose reads as text on the page, not a card.
+                  'py-0.5 text-gray-800 dark:text-gray-100'
           }`}
         >
-          <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+          <p className="text-[16px] leading-[1.6] whitespace-pre-wrap break-words">
             {message.content}
           </p>
         </div>
