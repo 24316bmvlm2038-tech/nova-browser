@@ -25,6 +25,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     setSelectedModel,
     setOllamaConnected,
     setAvailableModels,
+    liveSources,
   } = useChatStore();
 
   const [draft, setDraft] = useState(scannerConfig);
@@ -135,6 +136,70 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 </span>
               </label>
             ))}
+          </div>
+        </section>
+
+        <section className="mb-6">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-3 text-sm">
+            Live sources
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            Used for “what’s trending” questions. All enabled by default.
+          </p>
+
+          <div className="space-y-2">
+            {liveSources.map((source) => {
+              // An empty selection means "everything available".
+              const enabled =
+                draft.liveSources.length === 0
+                  ? source.available
+                  : draft.liveSources.includes(source.id);
+
+              return (
+                <label
+                  key={source.id}
+                  className={`flex items-center gap-3 ${
+                    source.available ? 'cursor-pointer' : 'opacity-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={enabled && source.available}
+                    disabled={!source.available}
+                    onChange={(event) => {
+                      // Materialize the implicit "all" set before toggling one off.
+                      const current =
+                        draft.liveSources.length === 0
+                          ? liveSources.filter((s) => s.available).map((s) => s.id)
+                          : draft.liveSources;
+                      setDraft({
+                        ...draft,
+                        liveSources: event.target.checked
+                          ? [...new Set([...current, source.id])]
+                          : current.filter((id) => id !== source.id),
+                      });
+                    }}
+                    className="w-4 h-4 accent-primary rounded"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {source.label}
+                    <span className="text-xs text-gray-400 dark:text-gray-500 ml-1.5">
+                      {source.kind}
+                    </span>
+                    {!source.available && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 ml-1.5">
+                        needs an API key
+                      </span>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
+            {liveSources.length === 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Could not reach the server to list sources.
+              </p>
+            )}
           </div>
         </section>
 

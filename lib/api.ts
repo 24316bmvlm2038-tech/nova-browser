@@ -1,4 +1,10 @@
-import type { Citation, PriceData, ScannerConfig } from '@/store/useChatStore';
+import type {
+  Citation,
+  LiveDigest,
+  PriceData,
+  ScannerConfig,
+  SourceInfo,
+} from '@/store/useChatStore';
 
 /**
  * Browser-side client for the app's own API routes. Nothing here talks to
@@ -78,6 +84,29 @@ export const scanPrice = async (
   );
 
   return { ...data, sources, timestamp: new Date() };
+};
+
+/** Trending across live sources, or a cross-source search when `query` is set. */
+export const fetchLive = (
+  query: string | undefined,
+  sources: string[],
+  limit = 18
+): Promise<LiveDigest> =>
+  postJson<LiveDigest>('/api/live', {
+    query: query || undefined,
+    sources: sources.length > 0 ? sources : undefined,
+    limit,
+  });
+
+export const fetchLiveSources = async (): Promise<SourceInfo[]> => {
+  try {
+    const response = await fetch('/api/live');
+    if (!response.ok) return [];
+    const data = await response.json();
+    return (data.sources ?? []) as SourceInfo[];
+  } catch {
+    return [];
+  }
 };
 
 export interface WebSearchResponse {

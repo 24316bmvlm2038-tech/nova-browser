@@ -2,15 +2,27 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChatStore, Message } from '@/store/useChatStore';
-import { fetchOllamaStatus, scanPrice, sendChat } from '@/lib/api';
-import { extractProductName, isPriceQuery } from '@/lib/searchIntent';
+import {
+  fetchLive,
+  fetchLiveSources,
+  fetchOllamaStatus,
+  scanPrice,
+  sendChat,
+} from '@/lib/api';
+import {
+  extractProductName,
+  extractTrendingTopic,
+  isPriceQuery,
+  isTrendingQuery,
+} from '@/lib/searchIntent';
 import ChatMessage from './ChatMessage';
 import SettingsPanel from './SettingsPanel';
 
 const EXAMPLES = [
+  "What's trending right now?",
   'How much is an iPhone 15 Pro?',
+  'What are people saying about AI on Reddit?',
   'What do people sell a PS5 for used?',
-  'Search for the latest Framework laptop reviews',
 ];
 
 const newId = () =>
@@ -33,6 +45,7 @@ export default function ChatInterface() {
     setOllamaConnected,
     setAvailableModels,
     setSelectedModel,
+    setLiveSources,
   } = useChatStore();
 
   const [inputValue, setInputValue] = useState('');
@@ -61,7 +74,8 @@ export default function ChatInterface() {
 
   useEffect(() => {
     refreshStatus();
-  }, [refreshStatus]);
+    fetchLiveSources().then(setLiveSources);
+  }, [refreshStatus, setLiveSources]);
 
   const pushAssistant = (content: string, extra: Partial<Message> = {}) =>
     addMessage({
@@ -89,7 +103,11 @@ export default function ChatInterface() {
     const history = messages.slice(-6).map(({ role, content }) => ({ role, content }));
 
     try {
-      if (isPriceQuery(trimmed) && scannerConfig.searchMode !== 'never') {
+      // Trending is checked first: a search engine's index lags by hours, so a
+      // "what's happening" question belongs on the live feeds, not /api/search.
+      if (isTrendingQuery(trimmed) && scannerConfig.searchMode !== 'never') {
+        await runTrending(trimmed, history);
+      } else if (isPriceQuery(trimmed) && scannerConfig.searchMode !== 'never') {
         await runPriceScan(trimmed, history);
       } else {
         await runChat(trimmed, history);
@@ -103,6 +121,62 @@ export default function ChatInterface() {
       setLoading(false);
       setStatusText('');
       inputRef.current?.focus();
+    }
+  };
+
+  const runTrending = async (
+    message: string,
+    history: { role: string; content: string }[]
+  ) => {
+    const topic = extractTrendingTopic(message);
+    setStatusText(
+      topic
+        ? `Checking live sources for “${topic}”…`
+        : 'Checking what’s trending across social and news…'
+    );
+
+    let digest;
+    try {
+      digest = await fetchLive(topic, scannerConfig.liveSources);
+    } catch (error) {
+      pushAssistant(
+        error instanceof Error ? error.message : 'Could not reach the live sources.',
+        { error: true }
+      );
+      return;
+    }
+
+    if (digest.items.length === 0) {
+      pushAssistant(
+        topic
+          ? `Nothing recent about “${topic}” on the sources I can reach.`
+          : 'The live sources returned nothing just now. Try again in a moment.',
+        { error: true, liveDigest: digest }
+      );
+      return;
+    }
+
+    const summary = describeDigest(digest, topic);
+
+    if (!ollamaConnected) {
+      pushAssistant(summary, { liveDigest: digest });
+      return;
+    }
+
+    setStatusText('Summarizing…');
+    try {
+      const { reply } = await sendChat(
+        `${summary}\n\nIn three sentences, tell the user what's happening ${
+          topic ? `with ${topic}` : 'right now'
+        } based only on these headlines. Note any story appearing on more than one platform. Do not invent details.`,
+        selectedModel,
+        history,
+        'never'
+      );
+      pushAssistant(reply || summary, { liveDigest: digest });
+    } catch {
+      // The feed is the valuable part; a model failure shouldn't lose it.
+      pushAssistant(summary, { liveDigest: digest });
     }
   };
 
@@ -199,7 +273,7 @@ export default function ChatInterface() {
       <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
-            Nova
+            Can Ai
           </h1>
           <button
             onClick={refreshStatus}
@@ -325,6 +399,21 @@ export default function ChatInterface() {
     </div>
   );
 }
+
+const describeDigest = (
+  digest: { items: { title: string; source: string; channel?: string; score?: number }[] },
+  topic: string
+): string => {
+  const lines = digest.items
+    .slice(0, 12)
+    .map((item) => {
+      const where = item.channel ? `${item.source}/${item.channel}` : item.source;
+      return `• [${where}] ${item.title}`;
+    })
+    .join('\n');
+
+  return `${topic ? `Live posts about "${topic}"` : "What's trending right now"}:\n${lines}`;
+};
 
 const describeScan = (priceData: {
   itemName: string;

@@ -62,7 +62,7 @@ and the URL the app calls:
 # On the machine running Ollama:
 OLLAMA_HOST=0.0.0.0 ollama serve
 
-# In .env.local on the machine running Nova:
+# In .env.local on the machine running Can Ai:
 OLLAMA_URL=http://192.168.1.50:11434
 ```
 

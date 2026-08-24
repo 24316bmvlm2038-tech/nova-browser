@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Trimmed capture of a Google News RSS feed, used to pin the feed parser. -->
+<rss version="2.0">
+<channel>
+  <title>Top stories - Google News</title>
+  <item>
+    <title>Central bank holds rates steady amid mixed signals - Reuters</title>
+    <link>https://news.google.com/rss/articles/CBMiabc123</link>
+    <pubDate>Mon, 24 Aug 2026 09:14:00 GMT</pubDate>
+    <description>&lt;a href="https://reuters.com/x"&gt;Full coverage&lt;/a&gt; of the decision.</description>
+    <source url="https://www.reuters.com">Reuters</source>
+  </item>
+  <item>
+    <title><![CDATA[Storm system moves inland, thousands without power - AP News]]></title>
+    <link>https://news.google.com/rss/articles/CBMidef456</link>
+    <pubDate>Mon, 24 Aug 2026 08:02:00 GMT</pubDate>
+  </item>
+  <item>
+    <title>Scientists map deepest part of the trench &amp; find new species - BBC</title>
+    <link>https://news.google.com/rss/articles/CBMighi789</link>
+    <pubDate>Mon, 24 Aug 2026 06:45:00 GMT</pubDate>
+  </item>
+  <item>
+    <title>A headline with no publisher suffix</title>
+    <link>https://news.google.com/rss/articles/CBMijkl000</link>
+    <pubDate>not a real date</pubDate>
+  </item>
+  <item>
+    <title>Missing link, should be skipped - Some Outlet</title>
+    <pubDate>Mon, 24 Aug 2026 05:00:00 GMT</pubDate>
+  </item>
+</channel>
+</rss>

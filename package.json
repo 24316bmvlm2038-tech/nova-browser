@@ -1,7 +1,7 @@
 {
-  "name": "nova-browser",
+  "name": "can-ai",
   "version": "1.0.0",
-  "description": "AI Price Scanner Chat Application",
+  "description": "Local AI chat with live social and news feeds, web search, and price scanning",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

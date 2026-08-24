@@ -41,8 +41,60 @@ const SEARCH_PATTERNS: RegExp[] = [
   /\bvs\.?\b/i,
 ];
 
+/**
+ * Questions about what's happening right now, which go to the live social and
+ * news sources rather than a web search — a search engine's index lags by
+ * hours, these feeds are current.
+ */
+const TRENDING_PATTERNS: RegExp[] = [
+  /\btrending\b/i,
+  /\btrends?\b/i,
+  /\bwhat'?s (?:happening|going on|new|hot|popular)\b/i,
+  /\bwhat is (?:happening|going on|trending)\b/i,
+  /\banything (?:new|happening)\b/i,
+  /\bviral\b/i,
+  /\bbreaking\b/i,
+  /\bheadlines?\b/i,
+  /\btop (?:stories|posts|news)\b/i,
+  /\b(?:latest|today'?s|current) news\b/i,
+  /\bnews (?:today|right now)\b/i,
+  // Deliberately not a bare /right now/ — "what's the price of X right now" is
+  // a price question, and trending is checked first.
+  /\bcatch me up\b/i,
+  /\bon (?:reddit|twitter|x|bluesky|mastodon|hacker ?news|youtube)\b/i,
+  /\bsocial media\b/i,
+];
+
 const matchesAny = (text: string, patterns: RegExp[]) =>
   patterns.some((pattern) => pattern.test(text));
+
+/** True when the message asks what's happening now. */
+export const isTrendingQuery = (message: string): boolean =>
+  matchesAny(message, TRENDING_PATTERNS);
+
+/**
+ * Pull a topic out of a trending question, or return '' for an open-ended
+ * "what's trending?" that should show the general digest.
+ */
+export const extractTrendingTopic = (message: string): string => {
+  const topic = message
+    .replace(/[?!.]+$/g, '')
+    .replace(/^\s*(?:hey|hi|so|ok|okay|please|can you|could you|tell me)\b[\s,]*/gi, '')
+    .replace(
+      /\b(?:what(?:'s| is| are)|show me|find|search|get me|any)\b/gi,
+      ' '
+    )
+    .replace(
+      /\b(?:trending|trends?|happening|going on|new|hot|popular|viral|breaking|headlines?|news|stories|posts|latest|today'?s|current|right now|social media|catch me up)\b/gi,
+      ' '
+    )
+    .replace(/\b(?:on|in|about|with|regarding|for|the|a|an|is|are|there|any)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // One or two leftover filler words aren't a topic.
+  return topic.length < 3 ? '' : topic;
+};
 
 /** True when the message is asking what something costs or sells for. */
 export const isPriceQuery = (message: string): boolean =>

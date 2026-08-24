@@ -35,11 +35,43 @@ export interface Citation {
   site: string;
 }
 
+/** One post or story pulled from a live social/news source. */
+export interface LiveItem {
+  id: string;
+  title: string;
+  url: string;
+  source: string;
+  channel?: string;
+  author?: string;
+  score?: number;
+  comments?: number;
+  publishedAt?: string;
+  summary?: string;
+}
+
+export interface LiveTopic {
+  name: string;
+  source: string;
+  url?: string;
+  volume?: number;
+}
+
+export interface LiveDigest {
+  /** The topic searched for, or null for the general trending digest. */
+  query: string | null;
+  items: LiveItem[];
+  topics: LiveTopic[];
+  sources: string[];
+  failures: { source: string; reason: string }[];
+  fetchedAt: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   priceData?: PriceData;
+  liveDigest?: LiveDigest;
   citations?: Citation[];
   /** Set when the turn failed, so the bubble can render as an error. */
   error?: boolean;
@@ -54,6 +86,16 @@ export interface ScannerConfig {
   currency: 'USD' | 'EUR' | 'GBP';
   maxResults: number;
   searchMode: SearchMode;
+  /** Source ids to pull live data from; empty means every available source. */
+  liveSources: string[];
+}
+
+export interface SourceInfo {
+  id: string;
+  label: string;
+  kind: 'social' | 'news';
+  available: boolean;
+  canSearch: boolean;
 }
 
 export interface ChatState {
@@ -65,6 +107,8 @@ export interface ChatState {
   availableModels: string[];
   selectedModel: string;
   searchProvider: string;
+  /** Live sources the server reports, with availability. */
+  liveSources: SourceInfo[];
   scannerConfig: ScannerConfig;
   addMessage: (message: Message) => void;
   removeMessage: (id: string) => void;
@@ -75,6 +119,7 @@ export interface ChatState {
   setAvailableModels: (models: string[]) => void;
   setSelectedModel: (model: string) => void;
   setSearchProvider: (provider: string) => void;
+  setLiveSources: (sources: SourceInfo[]) => void;
   updateScannerConfig: (config: Partial<ScannerConfig>) => void;
 }
 
@@ -86,12 +131,14 @@ export const useChatStore = create<ChatState>((set) => ({
   availableModels: [],
   selectedModel: '',
   searchProvider: '',
+  liveSources: [],
   scannerConfig: {
     showNewItems: true,
     showUsedItems: true,
     currency: 'USD',
     maxResults: 5,
     searchMode: 'auto',
+    liveSources: [],
   },
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
@@ -106,6 +153,7 @@ export const useChatStore = create<ChatState>((set) => ({
   setAvailableModels: (models) => set({ availableModels: models }),
   setSelectedModel: (model) => set({ selectedModel: model }),
   setSearchProvider: (provider) => set({ searchProvider: provider }),
+  setLiveSources: (sources) => set({ liveSources: sources }),
   updateScannerConfig: (config) =>
     set((state) => ({
       scannerConfig: { ...state.scannerConfig, ...config },

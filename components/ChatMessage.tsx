@@ -1,5 +1,6 @@
 import { Message } from '@/store/useChatStore';
 import PriceCard from './PriceCard';
+import TrendingCard from './TrendingCard';
 
 interface ChatMessageProps {
   message: Message;
@@ -12,7 +13,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} gap-4 px-4 py-6`}>
       {!isUser && (
         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-white text-xs font-bold">
-          N
+          C
         </div>
       )}
 
@@ -32,6 +33,8 @@ export default function ChatMessage({ message }: ChatMessageProps) {
         </div>
 
         {message.priceData && <PriceCard priceData={message.priceData} />}
+
+        {message.liveDigest && <TrendingCard digest={message.liveDigest} />}
 
         {message.citations && message.citations.length > 0 && (
           <div className="w-full">
