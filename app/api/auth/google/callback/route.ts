@@ -9,6 +9,7 @@ import {
   googleConfigured,
 } from '@/lib/auth/google';
 import { createSession, setSessionCookie } from '@/lib/auth/session';
+import { LEGAL_VERSION } from '@/lib/legal';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -71,8 +72,8 @@ export async function GET(request: Request) {
     } else {
       const id = randomUUID();
       db.prepare(
-        `INSERT INTO users (id, email, name, google_id, avatar_url, email_verified, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO users (id, email, name, google_id, avatar_url, email_verified, accepted_terms, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         id,
         email,
@@ -80,6 +81,7 @@ export async function GET(request: Request) {
         profile.sub,
         profile.picture ?? null,
         profile.emailVerified ? 1 : 0,
+        LEGAL_VERSION,
         now
       );
       user = {
@@ -90,6 +92,7 @@ export async function GET(request: Request) {
         google_id: profile.sub,
         avatar_url: profile.picture ?? null,
         email_verified: profile.emailVerified ? 1 : 0,
+        accepted_terms: LEGAL_VERSION,
         created_at: now,
       };
     }

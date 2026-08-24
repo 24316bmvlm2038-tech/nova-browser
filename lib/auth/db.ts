@@ -32,6 +32,8 @@ export const getDb = (): Database.Database => {
       google_id     TEXT UNIQUE,
       avatar_url    TEXT,
       email_verified INTEGER NOT NULL DEFAULT 0,
+      -- Version of the terms the user accepted at signup, for the record.
+      accepted_terms TEXT,
       created_at    TEXT NOT NULL
     );
 
@@ -57,6 +59,12 @@ export const getDb = (): Database.Database => {
     CREATE INDEX IF NOT EXISTS idx_codes_user ON verification_codes(user_id, purpose);
   `);
 
+  // Databases created before the column existed need it added in place.
+  const columns = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+  if (!columns.some((column) => column.name === 'accepted_terms')) {
+    db.exec('ALTER TABLE users ADD COLUMN accepted_terms TEXT');
+  }
+
   return db;
 };
 
@@ -68,6 +76,7 @@ export interface UserRow {
   google_id: string | null;
   avatar_url: string | null;
   email_verified: number;
+  accepted_terms: string | null;
   created_at: string;
 }
 

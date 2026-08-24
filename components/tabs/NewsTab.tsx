@@ -38,7 +38,7 @@ export default function NewsTab() {
       setBusy(true);
       setError('');
       try {
-        setDigest(await fetchLive(topic || undefined, [source], 25));
+        setDigest(await fetchLive(topic || undefined, [source], 25, true));
       } catch (problem) {
         setDigest(null);
         setError(problem instanceof Error ? problem.message : 'Could not load the feed.');
@@ -141,10 +141,10 @@ export default function NewsTab() {
             </div>
           )}
 
-          <ul className="flex flex-col gap-2">
-            {digest?.items.map((item) => (
+          <ul className="flex flex-col gap-2.5">
+            {digest?.items.map((item, index) => (
               <li key={item.id}>
-                <Story item={item} />
+                <Story item={item} lead={index === 0 && Boolean(item.image)} />
               </li>
             ))}
           </ul>
@@ -160,26 +160,76 @@ export default function NewsTab() {
   );
 }
 
-function Story({ item }: { item: LiveItem }) {
+function Story({ item, lead }: { item: LiveItem; lead: boolean }) {
+  const meta = (
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+      <span className="font-medium">{item.channel || item.source}</span>
+      {item.author && <span className="truncate max-w-[9rem]">{item.author}</span>}
+      {typeof item.score === 'number' && item.score > 0 && <span>▲ {compact(item.score)}</span>}
+      {typeof item.comments === 'number' && item.comments > 0 && (
+        <span>{compact(item.comments)} comments</span>
+      )}
+      {relativeTime(item.publishedAt) && <span>{relativeTime(item.publishedAt)}</span>}
+    </div>
+  );
+
+  // The top story runs full-bleed like a news app; the rest are list rows.
+  if (lead) {
+    return (
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-primary transition-colors group"
+      >
+        <Thumb src={item.image} className="w-full aspect-[16/9]" />
+        <div className="p-3.5">
+          <p className="text-[15px] font-semibold text-gray-900 dark:text-white group-hover:text-primary leading-snug">
+            {item.title}
+          </p>
+          {meta}
+        </div>
+      </a>
+    );
+  }
+
   return (
     <a
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-primary dark:hover:border-primary transition-colors group"
+      className="flex gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-primary transition-colors group"
     >
-      <p className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-primary leading-snug">
-        {item.title}
-      </p>
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-        <span className="font-medium">{item.channel || item.source}</span>
-        {item.author && <span>{item.author}</span>}
-        {typeof item.score === 'number' && item.score > 0 && <span>▲ {compact(item.score)}</span>}
-        {typeof item.comments === 'number' && item.comments > 0 && (
-          <span>{compact(item.comments)} comments</span>
-        )}
-        {relativeTime(item.publishedAt) && <span>{relativeTime(item.publishedAt)}</span>}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-primary leading-snug">
+          {item.title}
+        </p>
+        {meta}
       </div>
+      {item.image && <Thumb src={item.image} className="w-[76px] h-[76px] flex-shrink-0 rounded-lg" />}
     </a>
+  );
+}
+
+/**
+ * Publisher images are hotlinked from wherever the article lives, so a dead or
+ * blocked URL must collapse quietly rather than leave a broken-image icon.
+ */
+function Thumb({ src, className }: { src?: string; className: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return null;
+
+  return (
+    <div className={`overflow-hidden bg-gray-100 dark:bg-gray-800 ${className}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+        className="w-full h-full object-cover"
+      />
+    </div>
   );
 }

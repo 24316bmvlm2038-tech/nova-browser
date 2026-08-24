@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ALL_SOURCES, gather } from '@/lib/live';
+import { fetchThumbnails } from '@/lib/live/thumbnails';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,12 +25,16 @@ export async function POST(request: Request) {
   let query: string | undefined;
   let sources: string[] | undefined;
   let limit: number;
+  let withImages: boolean;
 
   try {
     const body = await request.json().catch(() => ({}));
     query = typeof body.query === 'string' && body.query.trim() ? body.query.trim() : undefined;
     sources = Array.isArray(body.sources) ? body.sources.filter((s: unknown) => typeof s === 'string') : undefined;
     limit = typeof body.limit === 'number' ? Math.min(Math.max(body.limit, 1), 40) : 18;
+    // Costs one extra request per story, so it's opt-in — the News tab asks
+    // for it, the chat digest doesn't.
+    withImages = body.withImages === true;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
@@ -49,6 +54,17 @@ export async function POST(request: Request) {
         },
         { status: 502 }
       );
+    }
+
+    if (withImages && digest.items.length > 0) {
+      const thumbs = await fetchThumbnails(
+        digest.items.map((item) => item.url),
+        controller.signal
+      );
+      digest.items = digest.items.map((item) => {
+        const image = thumbs.get(item.url);
+        return image ? { ...item, image } : item;
+      });
     }
 
     return NextResponse.json({ query: query ?? null, ...digest });

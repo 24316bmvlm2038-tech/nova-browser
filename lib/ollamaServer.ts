@@ -24,10 +24,25 @@ export const listModels = async (signal?: AbortSignal): Promise<OllamaModel[]> =
   }));
 };
 
+/** Models that can read an image. Ollama rejects `images` on text-only models. */
+export const VISION_MODEL_PATTERN =
+  /^(llava|llama3\.2-vision|llama3-vision|bakllava|moondream|minicpm-v|qwen2?-vl|granite3\.2-vision|gemma3)/i;
+
+export const DEFAULT_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision';
+
+/** Pick an installed vision model, preferring the configured one. */
+export const pickVisionModel = (installed: string[]): string | null => {
+  if (installed.includes(DEFAULT_VISION_MODEL)) return DEFAULT_VISION_MODEL;
+  // Tags vary (llava:13b, llava:latest), so match on the family prefix.
+  return installed.find((name) => VISION_MODEL_PATTERN.test(name)) ?? null;
+};
+
 export const generate = async (
   prompt: string,
   model: string = DEFAULT_MODEL,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /** Base64 image data (no data: prefix) for a vision model. */
+  images?: string[]
 ): Promise<string> => {
   const response = await fetch(`${OLLAMA_URL}/api/generate`, {
     method: 'POST',
@@ -36,6 +51,7 @@ export const generate = async (
       model,
       prompt,
       stream: false,
+      ...(images && images.length > 0 ? { images } : {}),
       options: { temperature: 0.7, top_k: 40, top_p: 0.9 },
     }),
     signal,

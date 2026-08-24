@@ -15,6 +15,8 @@ export interface LiveItem {
   /** ISO timestamp of publication, when the source reports one. */
   publishedAt?: string;
   summary?: string;
+  /** Article thumbnail, resolved from the page's og:image. */
+  image?: string;
 }
 
 /** A trending tag/topic rather than a single post. */

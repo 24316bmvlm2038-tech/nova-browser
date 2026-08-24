@@ -8,9 +8,14 @@ import {
   logOut,
   type ImageProviderInfo,
 } from '@/lib/api';
+import type { LegalDoc } from '@/lib/legal';
 import SettingsPanel from '../SettingsPanel';
 
-export default function ProfileTab() {
+export default function ProfileTab({
+  onOpenLegal,
+}: {
+  onOpenLegal: (doc: LegalDoc['id']) => void;
+}) {
   const {
     user,
     setUser,
@@ -129,6 +134,18 @@ export default function ProfileTab() {
               className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-amber-700 dark:text-amber-400 font-medium hover:border-amber-400"
             >
               Log out
+            </button>
+          </div>
+
+          <div className="flex justify-center gap-4 pt-2 pb-1 text-xs text-gray-500 dark:text-gray-400">
+            <button onClick={() => onOpenLegal('terms')} className="hover:text-primary hover:underline">
+              Terms
+            </button>
+            <button onClick={() => onOpenLegal('privacy')} className="hover:text-primary hover:underline">
+              Privacy
+            </button>
+            <button onClick={() => onOpenLegal('cookies')} className="hover:text-primary hover:underline">
+              Cookies
             </button>
           </div>
         </div>

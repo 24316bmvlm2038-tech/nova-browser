@@ -92,12 +92,14 @@ export const scanPrice = async (
 export const fetchLive = (
   query: string | undefined,
   sources: string[],
-  limit = 18
+  limit = 18,
+  withImages = false
 ): Promise<LiveDigest> =>
   postJson<LiveDigest>('/api/live', {
     query: query || undefined,
     sources: sources.length > 0 ? sources : undefined,
     limit,
+    withImages,
   });
 
 export const fetchLiveSources = async (): Promise<SourceInfo[]> => {
@@ -132,8 +134,12 @@ export type AuthOutcome =
   | { user: AccountUser }
   | { step: 'verify'; email: string; delivery: 'email' | 'console'; deliveryError: string | null };
 
-export const signUp = (name: string, email: string, password: string) =>
-  postJson<AuthOutcome>('/api/auth/signup', { name, email, password });
+export const signUp = (
+  name: string,
+  email: string,
+  password: string,
+  acceptedTerms: boolean
+) => postJson<AuthOutcome>('/api/auth/signup', { name, email, password, acceptedTerms });
 
 export const logIn = (email: string, password: string) =>
   postJson<AuthOutcome>('/api/auth/login', { email, password });
@@ -165,6 +171,24 @@ export const fetchImageProviders = async (): Promise<ImageProviderInfo[]> => {
     return ((await response.json()).providers ?? []) as ImageProviderInfo[];
   } catch {
     return [];
+  }
+};
+
+/* ------------------------------- vision -------------------------------- */
+
+export const identifyPhoto = (image: string) =>
+  postJson<{ name: string; model: string }>('/api/vision', { image });
+
+export const fetchVisionStatus = async (): Promise<{
+  available: boolean;
+  model: string | null;
+  suggested: string;
+}> => {
+  try {
+    const response = await fetch('/api/vision');
+    return await response.json();
+  } catch {
+    return { available: false, model: null, suggested: 'llama3.2-vision' };
   }
 };
 

@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useChatStore } from '@/store/useChatStore';
 import { fetchAuth } from '@/lib/api';
+import type { LegalDoc } from '@/lib/legal';
 import AuthScreen from './AuthScreen';
+import CookieNotice from './CookieNotice';
+import LegalSheet from './LegalSheet';
 import BottomNav from './BottomNav';
 import ChatInterface from './ChatInterface';
 import NewsTab from './tabs/NewsTab';
@@ -12,6 +15,7 @@ import ProfileTab from './tabs/ProfileTab';
 
 export default function AppShell() {
   const { activeTab, user, authReady, setUser, setAuthMeta } = useChatStore();
+  const [legal, setLegal] = useState<LegalDoc['id'] | null>(null);
 
   useEffect(() => {
     fetchAuth().then(({ user: account, providers }) => {
@@ -40,9 +44,11 @@ export default function AppShell() {
         <Pane show={activeTab === 'chat'}><ChatInterface /></Pane>
         <Pane show={activeTab === 'news'}><NewsTab /></Pane>
         <Pane show={activeTab === 'scan'}><ScanTab /></Pane>
-        <Pane show={activeTab === 'profile'}><ProfileTab /></Pane>
+        <Pane show={activeTab === 'profile'}><ProfileTab onOpenLegal={setLegal} /></Pane>
       </div>
       <BottomNav />
+      <CookieNotice onOpenLegal={setLegal} />
+      <LegalSheet doc={legal} onClose={() => setLegal(null)} onOpen={setLegal} />
     </div>
   );
 }

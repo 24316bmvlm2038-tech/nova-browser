@@ -10,6 +10,10 @@ hosted AI service.
 ## What it does
 
 - **Four tabs** — Chat, News, Scan, Profile, on a bottom nav.
+- **Camera scanning** — point your phone at a product; a local vision model
+  names it and the app prices it. Photos never leave your machine.
+- **News with pictures** — headlines carry the publisher's own image, pulled
+  from each article's Open Graph tags.
 - **Accounts** — sign up with name + email + password and confirm a real 6-digit
   emailed code, or continue with Google. Sessions are httpOnly cookies.
 - **Normal chat** — ask anything, answered by your local model.
@@ -98,13 +102,31 @@ http://localhost:3000/api/auth/google/callback
 
 Then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
-### 4. Optional: image generation
+### 4. Optional: camera scanning
+
+The Scan tab can photograph a product and identify it. That needs a vision model:
+
+```bash
+ollama pull llama3.2-vision   # or: llava, or moondream for something small
+```
+
+**On iPhone**, Safari only exposes the camera over HTTPS or on localhost. To scan
+from your phone, put the app behind HTTPS — the quickest way is a tunnel:
+
+```bash
+cloudflared tunnel --url http://localhost:3000
+```
+
+Then open the https URL it prints, and add it to your home screen for a
+fullscreen app with no Safari chrome.
+
+### 5. Optional: image generation
 
 Either run [Stable Diffusion WebUI](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
 with `--api` (found automatically on port 7860, costs nothing, prompts never
 leave the machine), or set `REPLICATE_API_TOKEN` for a hosted fallback.
 
-### 5. Optional: a better search backend
+### 6. Optional: a better search backend
 
 DuckDuckGo is the default because it needs no key, but it's scraped and gets rate
 limited. For heavier use, copy `.env.example` to `.env.local` and set one key:
@@ -138,6 +160,7 @@ two reasons: Ollama rejects cross-origin browser requests unless you set
 | `GET /api/auth/google` → `/callback` | real OAuth 2.0 with PKCE |
 | `GET /api/auth/me` · `POST /api/auth/logout` | session state |
 | `POST /api/image` | generates an image (signed in only) |
+| `POST /api/vision` | names the product in a photo (signed in only) |
 | `POST /api/chat` | Searches if needed, prompts Ollama with the results, returns the reply plus citations |
 | `POST /api/live` | Trending across live sources, or a cross-source search for a topic |
 | `GET /api/live` | Which sources exist and which are usable right now |
@@ -153,6 +176,8 @@ lib/
   auth/codes.ts        6-digit codes: single-use, expiring, attempt-limited
   auth/google.ts       OAuth 2.0 + PKCE
   images/providers.ts  Stable Diffusion / ComfyUI / Replicate behind one interface
+  live/thumbnails.ts   og:image extraction for news pictures, cached and bounded
+  legal.ts             Terms, Privacy and Cookie text in one place
   live/index.ts        fans out across sources, dedupes, ranks, interleaves
   live/sources/*.ts    one adapter per platform, all behind LiveSource
   live/rss.ts          minimal RSS/Atom parser for news feeds
@@ -298,3 +323,14 @@ plugs into the scan route with no other changes.
   code is unusable and a forged callback is rejected.
 
 The database sits at `.data/can-ai.db` and is gitignored.
+
+## Legal
+
+Terms of Service, Privacy Policy and a Cookie Policy live in `lib/legal.ts` and
+are reachable from the login screen, the Profile tab, and a first-run notice.
+Accepting them is required to create an account, and the version accepted is
+stored on the user row.
+
+They are written to describe what this code actually does — everything local, no
+analytics, one session cookie. That makes them accurate, not authoritative: have
+a lawyer review them before you distribute the app to other people.

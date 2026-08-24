@@ -71,6 +71,7 @@ export interface LiveItem {
   comments?: number;
   publishedAt?: string;
   summary?: string;
+  image?: string;
 }
 
 export interface LiveTopic {

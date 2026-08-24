@@ -290,25 +290,23 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-950">
-      <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-950">
+      <header className="flex-shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight leading-none">
             Can Ai
           </h1>
           <button
             onClick={refreshStatus}
-            className="flex items-center gap-2 text-xs px-2 py-1 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            className="flex items-center gap-1.5 mt-1 text-[11px] text-gray-500 dark:text-gray-400 hover:text-primary transition-colors"
             title="Click to re-check the connection"
           >
             <span
-              className={`w-2 h-2 rounded-full ${
-                ollamaConnected ? 'bg-green-500' : 'bg-red-500'
+              className={`w-1.5 h-1.5 rounded-full ${
+                ollamaConnected ? 'bg-primary' : 'bg-amber-500'
               }`}
             />
-            <span className="text-gray-600 dark:text-gray-400">
-              {ollamaConnected ? selectedModel || 'Ollama' : 'Ollama offline'}
-            </span>
+            {ollamaConnected ? selectedModel || 'Ollama' : 'Ollama offline'}
           </button>
         </div>
 
@@ -341,14 +339,12 @@ export default function ChatInterface() {
 
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="text-5xl mb-4">🔎</div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Ask me anything, or ask what something costs
+          <div className="flex flex-col justify-center h-full px-5 max-w-lg mx-auto w-full">
+            <h2 className="text-[26px] leading-tight font-bold text-gray-900 dark:text-white tracking-tight mb-2">
+              What can I do for you?
             </h2>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md mb-8">
-              I search the live web from your laptop and compare what sellers are
-              asking, new and used.
+            <p className="text-[15px] text-gray-500 dark:text-gray-400 mb-6">
+              Everything runs on your own machine.
             </p>
             <div className="flex flex-col gap-2">
               {EXAMPLES.map((example) => (
@@ -358,7 +354,7 @@ export default function ChatInterface() {
                     setInputValue(example);
                     inputRef.current?.focus();
                   }}
-                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:border-primary hover:text-primary transition-colors"
+                  className="text-left px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-[14px] text-gray-700 dark:text-gray-300 hover:border-primary hover:text-primary transition-colors"
                 >
                   {example}
                 </button>
@@ -371,10 +367,10 @@ export default function ChatInterface() {
               <ChatMessage key={message.id} message={message} />
             ))}
             {statusText && (
-              <div className="flex gap-4 px-4 py-6">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-teal-500" />
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <div className="max-w-2xl mx-auto flex gap-3 px-4 py-4">
+                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary" />
+                <div className="flex items-center gap-2 text-[13px] text-gray-500 dark:text-gray-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                   {statusText}
                 </div>
               </div>
@@ -384,22 +380,22 @@ export default function ChatInterface() {
         )}
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-        <div className="max-w-3xl mx-auto flex gap-3 items-end">
+      <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-3">
+        <div className="max-w-2xl mx-auto flex items-end gap-2 p-1.5 pl-4 rounded-[22px] border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus-within:border-primary transition-colors">
           <textarea
             ref={inputRef}
             value={inputValue}
             onChange={(event) => setInputValue(event.target.value)}
             onKeyDown={handleKeyDown}
             rows={1}
-            placeholder="Ask a question, or “how much is a Steam Deck?”"
+            placeholder="Ask anything"
             disabled={isLoading}
-            className="flex-1 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 resize-none max-h-40"
+            className="flex-1 min-w-0 bg-transparent py-2.5 text-[15px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none disabled:opacity-50 resize-none max-h-40"
           />
           <button
             onClick={handleSendMessage}
             disabled={isLoading || !inputValue.trim()}
-            className="px-4 py-3 rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            className="w-9 h-9 flex-shrink-0 grid place-items-center rounded-full bg-primary text-white disabled:opacity-30 disabled:cursor-not-allowed transition hover:brightness-110"
             aria-label="Send message"
           >
             {isLoading ? (
