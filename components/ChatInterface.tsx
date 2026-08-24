@@ -7,6 +7,7 @@ import {
   fetchLiveSources,
   fetchOllamaStatus,
   generateImage,
+  identifyPhoto,
   scanPrice,
   sendChat,
 } from '@/lib/api';
@@ -18,6 +19,7 @@ import {
   isPriceQuery,
   isTrendingQuery,
 } from '@/lib/searchIntent';
+import { useSpeech } from '@/lib/useSpeech';
 import ChatMessage from './ChatMessage';
 import SettingsPanel from './SettingsPanel';
 
@@ -55,6 +57,12 @@ export default function ChatInterface() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+
+  // Dictation appends, so you can speak in several bursts.
+  const speech = useSpeech((text) =>
+    setInputValue((current) => (current ? `${current} ${text}` : text))
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -127,6 +135,45 @@ export default function ChatInterface() {
       setLoading(false);
       setStatusText('');
       inputRef.current?.focus();
+    }
+  };
+
+  const onPhotoPicked = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset so picking the same file twice still fires a change event.
+    event.target.value = '';
+    if (!file || isLoading) return;
+
+    const dataUri = await downscale(file);
+
+    addMessage({
+      id: newId(),
+      role: 'user',
+      content: 'What is this?',
+      attachment: dataUri,
+      timestamp: new Date(),
+    });
+    setLoading(true);
+    setStatusText('Looking at your photo…');
+
+    try {
+      const { name } = await identifyPhoto(dataUri);
+      setStatusText(`Searching listings for “${name}”…`);
+      const priceData = await scanPrice(name, scannerConfig);
+      pushAssistant(
+        priceData.sources.length > 0
+          ? `That looks like ${name}. Here's what sellers are asking.`
+          : `That looks like ${name}, but I couldn't find prices for it.`,
+        priceData.sources.length > 0 ? { priceData } : { error: true }
+      );
+    } catch (error) {
+      pushAssistant(
+        error instanceof Error ? error.message : 'Could not read that photo.',
+        { error: true }
+      );
+    } finally {
+      setLoading(false);
+      setStatusText('');
     }
   };
 
@@ -381,7 +428,27 @@ export default function ChatInterface() {
       </div>
 
       <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-3">
-        <div className="max-w-2xl mx-auto flex items-end gap-2 p-1.5 pl-4 rounded-[22px] border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus-within:border-primary transition-colors">
+        <div className="max-w-2xl mx-auto flex items-end gap-1 p-1.5 pl-2 rounded-[22px] border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus-within:border-primary transition-colors">
+          <input
+            ref={photoRef}
+            type="file"
+            accept="image/*"
+            onChange={onPhotoPicked}
+            className="hidden"
+          />
+          <button
+            onClick={() => photoRef.current?.click()}
+            disabled={isLoading}
+            className="w-9 h-9 flex-shrink-0 grid place-items-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 transition"
+            aria-label="Add a photo"
+            title="Add a photo"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
+          </button>
           <textarea
             ref={inputRef}
             value={inputValue}
@@ -392,6 +459,24 @@ export default function ChatInterface() {
             disabled={isLoading}
             className="flex-1 min-w-0 bg-transparent py-2.5 text-[15px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none disabled:opacity-50 resize-none max-h-40"
           />
+          {speech.state !== 'unsupported' && (
+            <button
+              onClick={() => (speech.state === 'listening' ? speech.stop() : speech.start())}
+              disabled={isLoading}
+              className={`w-9 h-9 flex-shrink-0 grid place-items-center rounded-full transition disabled:opacity-40 ${
+                speech.state === 'listening'
+                  ? 'bg-red-500 text-white animate-pulse'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              aria-label={speech.state === 'listening' ? 'Stop dictating' : 'Dictate'}
+              title={speech.state === 'listening' ? 'Stop dictating' : 'Dictate'}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={handleSendMessage}
             disabled={isLoading || !inputValue.trim()}
@@ -410,12 +495,47 @@ export default function ChatInterface() {
             )}
           </button>
         </div>
+
+        {(speech.state === 'listening' || speech.error) && (
+          <p className="max-w-2xl mx-auto mt-1.5 px-4 text-[13px] text-gray-500 dark:text-gray-400">
+            {speech.error || (speech.interim ? `“${speech.interim}”` : 'Listening…')}
+          </p>
+        )}
       </div>
 
       <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }
+
+/**
+ * Photos out of a phone gallery are many megapixels. The vision model gains
+ * nothing above ~1024px and base64 of a full-size frame is slow to send.
+ */
+const downscale = (file: File, maxEdge = 1024): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error('That file is not an image.'));
+      image.onload = () => {
+        const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        const context = canvas.getContext('2d');
+        if (!context) {
+          reject(new Error('Could not process that image.'));
+          return;
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      image.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
 
 const describeDigest = (
   digest: { items: { title: string; source: string; channel?: string; score?: number }[] },

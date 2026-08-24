@@ -27,6 +27,10 @@ hosted AI service.
 - **Price scanning** — "how much is a Steam Deck?" or "what do people sell a PS5
   for?" runs two searches (retail and second-hand), pulls prices out of the
   results, and shows a comparison card with links to each seller.
+- **Voice input** — dictate instead of typing, using the browser's own speech
+  recognition. Works in Safari on iOS.
+- **Photos in and out** — attach a picture from your camera roll to identify and
+  price it, and save generated images back to Photos.
 - **Customisable** — model, search behaviour, which live sources to use,
   currency, new/used filters, all in Settings and all held in a Zustand store.
 
@@ -71,9 +75,11 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 and create an account. Your verification code is
-printed in the terminal running the app until you configure SMTP — it's a real
-code either way, just delivered to your console instead of your inbox.
+Open http://localhost:3000 and create an account. With no mail server set up,
+`npm run dev` fills your verification code straight into the form so signup just
+works. It's a real code — the same one, also printed to your terminal. A
+production build (`npm start` with `NODE_ENV=production`) never returns it to
+the browser, so configure SMTP before you deploy anywhere.
 
 Search and all five live feeds work with no API key and no config.
 
@@ -323,6 +329,22 @@ plugs into the scan route with no other changes.
   code is unusable and a forged callback is rejected.
 
 The database sits at `.data/can-ai.db` and is gitignored.
+
+## Photos, voice, and the browser APIs behind them
+
+**Saving to the camera roll.** iOS Safari ignores the `download` attribute, so a
+plain link just navigates. The Web Share API is the only route to *Save Image*
+there, and it needs a `File` and a user gesture. `lib/saveImage.ts` tries the
+share sheet first, falls back to `download` (which desktop and Android honour),
+and finally opens the image so it can be long-pressed.
+
+**Voice input** uses the Web Speech API — `webkitSpeechRecognition` in Safari.
+Worth knowing: on Apple platforms that recognition happens on Apple's servers,
+not on your machine. It's the one part of the app that isn't local, which is why
+the mic is opt-in per use rather than always listening.
+
+**Attached photos** are downscaled to 1024px in the browser before they go
+anywhere, so a 12MP phone picture doesn't get base64'd at full size.
 
 ## Legal
 

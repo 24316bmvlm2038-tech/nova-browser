@@ -132,7 +132,14 @@ export const fetchAuth = async (): Promise<AuthMeta> => {
 /** Signup and login share a shape: either a session, or a pending code step. */
 export type AuthOutcome =
   | { user: AccountUser }
-  | { step: 'verify'; email: string; delivery: 'email' | 'console'; deliveryError: string | null };
+  | {
+      step: 'verify';
+      email: string;
+      delivery: 'email' | 'console';
+      deliveryError: string | null;
+      /** Present only in development with no SMTP, so the UI can show it. */
+      devCode: string | null;
+    };
 
 export const signUp = (
   name: string,
@@ -148,7 +155,10 @@ export const verifyEmail = (email: string, code: string) =>
   postJson<{ user: AccountUser }>('/api/auth/verify', { email, code });
 
 export const resendCode = (email: string) =>
-  postJson<{ sent: boolean; delivery: 'email' | 'console' }>('/api/auth/resend', { email });
+  postJson<{ sent: boolean; delivery: 'email' | 'console'; devCode: string | null }>(
+    '/api/auth/resend',
+    { email }
+  );
 
 export const logOut = () => postJson<{ ok: boolean }>('/api/auth/logout', {});
 

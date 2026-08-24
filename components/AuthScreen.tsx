@@ -87,11 +87,19 @@ export default function AuthScreen() {
 
       setMode('verify');
       setError(outcome.deliveryError ? `Could not send the email: ${outcome.deliveryError}` : '');
-      setNotice(
-        outcome.delivery === 'email'
-          ? `We sent a 6-digit code to ${email}.`
-          : 'SMTP is not set up, so your code was printed in the terminal running the app.'
-      );
+
+      if (outcome.devCode) {
+        // No mail server in development: fill the code in so verification
+        // works out of the box instead of sending people to the terminal.
+        setCode(outcome.devCode);
+        setNotice(`No mail server configured, so here's your code: ${outcome.devCode}`);
+      } else {
+        setNotice(
+          outcome.delivery === 'email'
+            ? `We sent a 6-digit code to ${email}.`
+            : 'SMTP is not set up, so your code was printed in the terminal running the app.'
+        );
+      }
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : 'Something went wrong.');
     } finally {
@@ -103,12 +111,17 @@ export default function AuthScreen() {
     setBusy(true);
     setError('');
     try {
-      const { delivery } = await resendCode(email);
-      setNotice(
-        delivery === 'email'
-          ? `A new code is on its way to ${email}.`
-          : 'A new code was printed in the terminal running the app.'
-      );
+      const { delivery, devCode } = await resendCode(email);
+      if (devCode) {
+        setCode(devCode);
+        setNotice(`Here's your new code: ${devCode}`);
+      } else {
+        setNotice(
+          delivery === 'email'
+            ? `A new code is on its way to ${email}.`
+            : 'A new code was printed in the terminal running the app.'
+        );
+      }
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : 'Could not resend the code.');
     } finally {

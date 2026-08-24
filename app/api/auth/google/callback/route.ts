@@ -1,15 +1,13 @@
-import { randomUUID } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { findUserByEmail, findUserByGoogleId, getDb, normalizeEmail } from '@/lib/auth/db';
 import {
   STATE_COOKIE,
   VERIFIER_COOKIE,
   exchangeCode,
   googleConfigured,
+  upsertGoogleUser,
 } from '@/lib/auth/google';
 import { createSession, setSessionCookie } from '@/lib/auth/session';
-import { LEGAL_VERSION } from '@/lib/legal';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,50 +51,7 @@ export async function GET(request: Request) {
     return fail(error instanceof Error ? error.message : 'Google sign-in failed.');
   }
 
-  const db = getDb();
-  const email = normalizeEmail(profile.email);
-  const now = new Date().toISOString();
-
-  let user = findUserByGoogleId(profile.sub);
-
-  if (!user) {
-    const byEmail = findUserByEmail(email);
-    if (byEmail) {
-      // Same person arriving via Google on an existing email account: link the
-      // two rather than creating a duplicate or refusing the sign-in.
-      db.prepare(
-        `UPDATE users SET google_id = ?, avatar_url = COALESCE(?, avatar_url),
-         email_verified = 1 WHERE id = ?`
-      ).run(profile.sub, profile.picture ?? null, byEmail.id);
-      user = { ...byEmail, google_id: profile.sub, email_verified: 1 };
-    } else {
-      const id = randomUUID();
-      db.prepare(
-        `INSERT INTO users (id, email, name, google_id, avatar_url, email_verified, accepted_terms, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        id,
-        email,
-        profile.name,
-        profile.sub,
-        profile.picture ?? null,
-        profile.emailVerified ? 1 : 0,
-        LEGAL_VERSION,
-        now
-      );
-      user = {
-        id,
-        email,
-        name: profile.name,
-        password_hash: null,
-        google_id: profile.sub,
-        avatar_url: profile.picture ?? null,
-        email_verified: profile.emailVerified ? 1 : 0,
-        accepted_terms: LEGAL_VERSION,
-        created_at: now,
-      };
-    }
-  }
+  const user = upsertGoogleUser(profile);
 
   setSessionCookie(createSession(user.id));
   return NextResponse.redirect(appUrl());

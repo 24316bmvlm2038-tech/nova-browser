@@ -1,9 +1,43 @@
+'use client';
+
+import { useState } from 'react';
 import { Message } from '@/store/useChatStore';
+import { canShareFiles, saveImage } from '@/lib/saveImage';
 import PriceCard from './PriceCard';
 import TrendingCard from './TrendingCard';
 
 interface ChatMessageProps {
   message: Message;
+}
+
+/** Puts a generated image into the phone's photo library. */
+function SaveButton({ dataUri, caption }: { dataUri: string; caption: string }) {
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const onSave = async () => {
+    setBusy(true);
+    const result = await saveImage(dataUri, caption);
+    setNote(result.ok ? 'Saved' : result.reason);
+    setBusy(false);
+    setTimeout(() => setNote(''), 4000);
+  };
+
+  return (
+    <span className="flex items-center gap-2 flex-shrink-0">
+      {note && <span className="text-xs text-gray-500 dark:text-gray-400">{note}</span>}
+      <button
+        onClick={onSave}
+        disabled={busy}
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:border-primary hover:text-primary disabled:opacity-50 transition"
+      >
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+        </svg>
+        {canShareFiles() ? 'Save to Photos' : 'Save'}
+      </button>
+    </span>
+  );
 }
 
 export default function ChatMessage({ message }: ChatMessageProps) {
@@ -36,6 +70,15 @@ export default function ChatMessage({ message }: ChatMessageProps) {
           </p>
         </div>
 
+        {message.attachment && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={message.attachment}
+            alt="Attached photo"
+            className="max-w-[70%] rounded-[18px] rounded-br-md border border-gray-200 dark:border-gray-800"
+          />
+        )}
+
         {message.priceData && <PriceCard priceData={message.priceData} />}
 
         {message.liveDigest && <TrendingCard digest={message.liveDigest} />}
@@ -52,9 +95,11 @@ export default function ChatMessage({ message }: ChatMessageProps) {
               height={message.image.height}
               className="w-full h-auto block"
             />
-            <figcaption className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between gap-3">
-              <span className="truncate">{message.image.prompt}</span>
-              <span className="flex-shrink-0">{message.image.provider}</span>
+            <figcaption className="px-3 py-2 flex items-center justify-between gap-3">
+              <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {message.image.prompt}
+              </span>
+              <SaveButton dataUri={message.image.dataUri} caption={message.image.prompt} />
             </figcaption>
           </figure>
         )}

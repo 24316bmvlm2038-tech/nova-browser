@@ -98,6 +98,8 @@ export interface Message {
   priceData?: PriceData;
   liveDigest?: LiveDigest;
   image?: GeneratedImage;
+  /** A photo the user attached, as a data URI. */
+  attachment?: string;
   citations?: Citation[];
   /** Set when the turn failed, so the bubble can render as an error. */
   error?: boolean;

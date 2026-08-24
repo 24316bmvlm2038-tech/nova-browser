@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         email: existing.email,
         delivery: sent.delivery,
         deliveryError: sent.error ?? null,
+        devCode: sent.devCode ?? null,
       });
     }
     return NextResponse.json(
@@ -98,5 +99,6 @@ export async function POST(request: Request) {
     email,
     delivery: sent.delivery,
     deliveryError: sent.error ?? null,
+    devCode: sent.devCode ?? null,
   });
 }

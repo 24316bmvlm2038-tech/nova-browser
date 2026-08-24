@@ -61,6 +61,7 @@ export async function POST(request: Request) {
       email: user.email,
       delivery: sent.delivery,
       deliveryError: sent.error ?? null,
+      devCode: sent.devCode ?? null,
     });
   }
 

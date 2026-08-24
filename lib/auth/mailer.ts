@@ -48,20 +48,29 @@ const escapeHtml = (value: string) =>
   );
 
 /**
+ * True only when there is no mail server AND we're running in development.
+ * In that case the code is echoed to the browser so verification is usable
+ * out of the box; a deployed instance with NODE_ENV=production never does.
+ */
+export const canRevealCode = (): boolean =>
+  !smtpConfigured() && process.env.NODE_ENV !== 'production';
+
+/**
  * Send the code. With SMTP configured it goes to the real inbox; without it the
- * code is printed to the terminal running the app. The caller is told which
- * happened so the UI can say so rather than claim an email that never left.
+ * code is printed to the terminal running the app, and echoed back in dev so
+ * the UI can show it. The caller is told which happened, so it never claims an
+ * email that did not leave.
  */
 export const sendVerificationCode = async (
   to: string,
   name: string,
   code: string
-): Promise<{ delivery: Delivery; error?: string }> => {
+): Promise<{ delivery: Delivery; error?: string; devCode?: string }> => {
   const message = body(name, code);
 
   if (!smtpConfigured()) {
     printToConsole(to, code);
-    return { delivery: 'console' };
+    return { delivery: 'console', devCode: canRevealCode() ? code : undefined };
   }
 
   try {
@@ -77,6 +86,7 @@ export const sendVerificationCode = async (
     return {
       delivery: 'console',
       error: error instanceof Error ? error.message : 'SMTP send failed',
+      devCode: canRevealCode() ? code : undefined,
     };
   }
 };

@@ -36,5 +36,6 @@ export async function POST(request: Request) {
     sent: true,
     delivery: sent.delivery,
     deliveryError: sent.error ?? null,
+    devCode: sent.devCode ?? null,
   });
 }

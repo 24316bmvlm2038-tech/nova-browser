@@ -50,6 +50,10 @@ export const buildAuthUrl = (): OAuthStart => {
   return { url: `${AUTH_ENDPOINT}?${params}`, state, verifier };
 };
 
+import { randomUUID } from 'node:crypto';
+import { findUserByEmail, findUserByGoogleId, getDb, normalizeEmail, type UserRow } from './db';
+import { LEGAL_VERSION } from '../legal';
+
 export interface GoogleProfile {
   sub: string;
   email: string;
@@ -102,5 +106,64 @@ export const exchangeCode = async (
     picture: profile.picture,
     // Google has already verified this address, so we don't re-verify it.
     emailVerified: profile.email_verified !== false,
+  };
+};
+
+
+/**
+ * Turn a verified Google profile into a local user.
+ *
+ * Three cases, and the middle one is the one that matters: someone who signed
+ * up with a password and later clicks "Continue with Google" is the same
+ * person, so the accounts are linked rather than duplicated or refused.
+ */
+export const upsertGoogleUser = (profile: GoogleProfile): UserRow => {
+  const db = getDb();
+  const email = normalizeEmail(profile.email);
+  const now = new Date().toISOString();
+
+  const byGoogle = findUserByGoogleId(profile.sub);
+  if (byGoogle) return byGoogle;
+
+  const byEmail = findUserByEmail(email);
+  if (byEmail) {
+    db.prepare(
+      `UPDATE users SET google_id = ?, avatar_url = COALESCE(?, avatar_url),
+       email_verified = 1 WHERE id = ?`
+    ).run(profile.sub, profile.picture ?? null, byEmail.id);
+
+    return {
+      ...byEmail,
+      google_id: profile.sub,
+      avatar_url: profile.picture ?? byEmail.avatar_url,
+      email_verified: 1,
+    };
+  }
+
+  const id = randomUUID();
+  db.prepare(
+    `INSERT INTO users (id, email, name, google_id, avatar_url, email_verified, accepted_terms, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    email,
+    profile.name,
+    profile.sub,
+    profile.picture ?? null,
+    profile.emailVerified ? 1 : 0,
+    LEGAL_VERSION,
+    now
+  );
+
+  return {
+    id,
+    email,
+    name: profile.name,
+    password_hash: null,
+    google_id: profile.sub,
+    avatar_url: profile.picture ?? null,
+    email_verified: profile.emailVerified ? 1 : 0,
+    accepted_terms: LEGAL_VERSION,
+    created_at: now,
   };
 };
