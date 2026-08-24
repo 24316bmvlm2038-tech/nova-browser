@@ -6,12 +6,15 @@ import {
   fetchLive,
   fetchLiveSources,
   fetchOllamaStatus,
+  generateImage,
   scanPrice,
   sendChat,
 } from '@/lib/api';
 import {
+  extractImagePrompt,
   extractProductName,
   extractTrendingTopic,
+  isImageQuery,
   isPriceQuery,
   isTrendingQuery,
 } from '@/lib/searchIntent';
@@ -20,9 +23,9 @@ import SettingsPanel from './SettingsPanel';
 
 const EXAMPLES = [
   "What's trending right now?",
+  'Draw a fox asleep in falling snow',
   'How much is an iPhone 15 Pro?',
   'What are people saying about AI on Reddit?',
-  'What do people sell a PS5 for used?',
 ];
 
 const newId = () =>
@@ -103,9 +106,12 @@ export default function ChatInterface() {
     const history = messages.slice(-6).map(({ role, content }) => ({ role, content }));
 
     try {
-      // Trending is checked first: a search engine's index lags by hours, so a
-      // "what's happening" question belongs on the live feeds, not /api/search.
-      if (isTrendingQuery(trimmed) && scannerConfig.searchMode !== 'never') {
+      // Images first: "draw me what's trending" is a picture request, not a
+      // trending question. Then trending, since a search engine's index lags
+      // hours behind the live feeds.
+      if (isImageQuery(trimmed)) {
+        await runImage(trimmed);
+      } else if (isTrendingQuery(trimmed) && scannerConfig.searchMode !== 'never') {
         await runTrending(trimmed, history);
       } else if (isPriceQuery(trimmed) && scannerConfig.searchMode !== 'never') {
         await runPriceScan(trimmed, history);
@@ -121,6 +127,21 @@ export default function ChatInterface() {
       setLoading(false);
       setStatusText('');
       inputRef.current?.focus();
+    }
+  };
+
+  const runImage = async (message: string) => {
+    const prompt = extractImagePrompt(message);
+    setStatusText(`Generating “${prompt}”… this can take a minute.`);
+
+    try {
+      const image = await generateImage(prompt);
+      pushAssistant(`Here's “${image.prompt}”.`, { image });
+    } catch (error) {
+      pushAssistant(
+        error instanceof Error ? error.message : 'Image generation failed.',
+        { error: true }
+      );
     }
   };
 
@@ -269,7 +290,7 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-white dark:bg-gray-950">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-950">
       <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">

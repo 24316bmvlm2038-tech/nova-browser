@@ -1,5 +1,7 @@
 import type {
+  AccountUser,
   Citation,
+  GeneratedImage,
   LiveDigest,
   PriceData,
   ScannerConfig,
@@ -104,6 +106,63 @@ export const fetchLiveSources = async (): Promise<SourceInfo[]> => {
     if (!response.ok) return [];
     const data = await response.json();
     return (data.sources ?? []) as SourceInfo[];
+  } catch {
+    return [];
+  }
+};
+
+/* ------------------------------- auth ---------------------------------- */
+
+export interface AuthMeta {
+  user: AccountUser | null;
+  providers: { google: boolean; emailDelivery: 'email' | 'console' };
+}
+
+export const fetchAuth = async (): Promise<AuthMeta> => {
+  try {
+    const response = await fetch('/api/auth/me', { cache: 'no-store' });
+    return (await response.json()) as AuthMeta;
+  } catch {
+    return { user: null, providers: { google: false, emailDelivery: 'console' } };
+  }
+};
+
+/** Signup and login share a shape: either a session, or a pending code step. */
+export type AuthOutcome =
+  | { user: AccountUser }
+  | { step: 'verify'; email: string; delivery: 'email' | 'console'; deliveryError: string | null };
+
+export const signUp = (name: string, email: string, password: string) =>
+  postJson<AuthOutcome>('/api/auth/signup', { name, email, password });
+
+export const logIn = (email: string, password: string) =>
+  postJson<AuthOutcome>('/api/auth/login', { email, password });
+
+export const verifyEmail = (email: string, code: string) =>
+  postJson<{ user: AccountUser }>('/api/auth/verify', { email, code });
+
+export const resendCode = (email: string) =>
+  postJson<{ sent: boolean; delivery: 'email' | 'console' }>('/api/auth/resend', { email });
+
+export const logOut = () => postJson<{ ok: boolean }>('/api/auth/logout', {});
+
+/* ------------------------------- images -------------------------------- */
+
+export const generateImage = (prompt: string, size: '512' | '768' | '1024' = '768') =>
+  postJson<GeneratedImage>('/api/image', { prompt, size });
+
+export interface ImageProviderInfo {
+  id: string;
+  label: string;
+  local: boolean;
+  configured: boolean;
+}
+
+export const fetchImageProviders = async (): Promise<ImageProviderInfo[]> => {
+  try {
+    const response = await fetch('/api/image');
+    if (!response.ok) return [];
+    return ((await response.json()).providers ?? []) as ImageProviderInfo[];
   } catch {
     return [];
   }

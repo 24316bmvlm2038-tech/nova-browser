@@ -35,6 +35,30 @@ export interface Citation {
   site: string;
 }
 
+/** An image the assistant generated. */
+export interface GeneratedImage {
+  dataUri: string;
+  width: number;
+  height: number;
+  provider: string;
+  model?: string;
+  prompt: string;
+}
+
+/** The signed-in account, as the server reports it. Never carries secrets. */
+export interface AccountUser {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  emailVerified: boolean;
+  hasPassword: boolean;
+  linkedGoogle: boolean;
+  createdAt: string;
+}
+
+export type Tab = 'chat' | 'news' | 'scan' | 'profile';
+
 /** One post or story pulled from a live social/news source. */
 export interface LiveItem {
   id: string;
@@ -72,6 +96,7 @@ export interface Message {
   content: string;
   priceData?: PriceData;
   liveDigest?: LiveDigest;
+  image?: GeneratedImage;
   citations?: Citation[];
   /** Set when the turn failed, so the bubble can render as an error. */
   error?: boolean;
@@ -99,6 +124,13 @@ export interface SourceInfo {
 }
 
 export interface ChatState {
+  activeTab: Tab;
+  user: AccountUser | null;
+  /** False until /api/auth/me has answered, so the UI can hold the splash. */
+  authReady: boolean;
+  googleEnabled: boolean;
+  /** 'console' means codes print to the terminal because SMTP isn't set. */
+  emailDelivery: 'email' | 'console';
   messages: Message[];
   isLoading: boolean;
   /** What the app is doing right now, shown in the composer. */
@@ -120,10 +152,22 @@ export interface ChatState {
   setSelectedModel: (model: string) => void;
   setSearchProvider: (provider: string) => void;
   setLiveSources: (sources: SourceInfo[]) => void;
+  setActiveTab: (tab: Tab) => void;
+  setUser: (user: AccountUser | null) => void;
+  setAuthMeta: (meta: {
+    authReady?: boolean;
+    googleEnabled?: boolean;
+    emailDelivery?: 'email' | 'console';
+  }) => void;
   updateScannerConfig: (config: Partial<ScannerConfig>) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
+  activeTab: 'chat',
+  user: null,
+  authReady: false,
+  googleEnabled: false,
+  emailDelivery: 'console',
   messages: [],
   isLoading: false,
   statusText: '',
@@ -154,6 +198,9 @@ export const useChatStore = create<ChatState>((set) => ({
   setSelectedModel: (model) => set({ selectedModel: model }),
   setSearchProvider: (provider) => set({ searchProvider: provider }),
   setLiveSources: (sources) => set({ liveSources: sources }),
+  setActiveTab: (tab) => set({ activeTab: tab }),
+  setUser: (user) => set({ user }),
+  setAuthMeta: (meta) => set((state) => ({ ...state, ...meta })),
   updateScannerConfig: (config) =>
     set((state) => ({
       scannerConfig: { ...state.scannerConfig, ...config },

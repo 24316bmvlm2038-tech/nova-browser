@@ -1,11 +1,5 @@
-'use client';
-
-import ChatInterface from '@/components/ChatInterface';
+import AppShell from '@/components/AppShell';
 
 export default function Home() {
-  return (
-    <main className="h-screen">
-      <ChatInterface />
-    </main>
-  );
+  return <AppShell />;
 }

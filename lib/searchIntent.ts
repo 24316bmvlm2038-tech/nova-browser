@@ -65,8 +65,44 @@ const TRENDING_PATTERNS: RegExp[] = [
   /\bsocial media\b/i,
 ];
 
+/**
+ * Requests to make a picture. Checked before everything else, since "draw me a
+ * picture of what's trending" is an image request, not a trending question.
+ */
+const IMAGE_PATTERNS: RegExp[] = [
+  /\b(?:draw|paint|sketch|illustrate|render)\b/i,
+  /\b(?:generate|create|make|give me)\b[^.?!]{0,24}\b(?:an? )?(?:image|picture|photo|artwork|illustration|logo|wallpaper|poster)\b/i,
+  /\b(?:image|picture|photo|artwork|illustration)\s+of\b/i,
+  /\bimagine\b[^.?!]{0,20}\b(?:scene|image|picture)\b/i,
+];
+
 const matchesAny = (text: string, patterns: RegExp[]) =>
   patterns.some((pattern) => pattern.test(text));
+
+/** True when the message asks for an image to be generated. */
+export const isImageQuery = (message: string): boolean =>
+  matchesAny(message, IMAGE_PATTERNS);
+
+/**
+ * Strip the request wrapper so only the subject reaches the image model —
+ * "draw me a picture of a fox in snow" becomes "a fox in snow".
+ */
+export const extractImagePrompt = (message: string): string => {
+  const subject = message
+    .replace(/[?!.]+$/g, '')
+    .replace(/^\s*(?:hey|hi|please|can you|could you|i want|i'd like)\b[\s,]*/gi, '')
+    .replace(
+      /\b(?:draw|paint|sketch|illustrate|render|generate|create|make|imagine|give)\b/gi,
+      ' '
+    )
+    .replace(/\b(?:me|us|for me|a|an|the)\b\s*(?=(?:image|picture|photo|artwork|illustration)\b)/gi, ' ')
+    .replace(/\b(?:image|picture|photo|artwork|illustration|logo|wallpaper|poster)\s+of\b/gi, ' ')
+    .replace(/^\s*(?:me|us)\b[\s,]*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return subject || message.trim();
+};
 
 /** True when the message asks what's happening now. */
 export const isTrendingQuery = (message: string): boolean =>

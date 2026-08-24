@@ -9,7 +9,12 @@ hosted AI service.
 
 ## What it does
 
+- **Four tabs** — Chat, News, Scan, Profile, on a bottom nav.
+- **Accounts** — sign up with name + email + password and confirm a real 6-digit
+  emailed code, or continue with Google. Sessions are httpOnly cookies.
 - **Normal chat** — ask anything, answered by your local model.
+- **Image generation** — "draw a fox asleep in falling snow" renders through a
+  local Stable Diffusion server, or Replicate if you'd rather not run one.
 - **What's trending** — "what's happening right now?" pulls live posts from
   Reddit, Hacker News, Bluesky, Mastodon and Google News, merges them, and shows
   a ranked feed with trending hashtags.
@@ -62,12 +67,44 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The dot next to "Can Ai" turns green when Ollama is
-reachable — click it to re-check.
+Open http://localhost:3000 and create an account. Your verification code is
+printed in the terminal running the app until you configure SMTP — it's a real
+code either way, just delivered to your console instead of your inbox.
 
-That's it. Search and all five live feeds work with no API key and no config.
+Search and all five live feeds work with no API key and no config.
 
-### 3. Optional: a better search backend
+### 3. Optional: real emails and Google sign-in
+
+Both are off until you configure them. The Google button stays disabled rather
+than sending you at a broken redirect, and the login screen tells you where
+codes are going.
+
+**Emailed codes** — any SMTP account. For Gmail, create an App Password (needs
+2FA on); your normal password won't work:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-16-char-app-password
+```
+
+**Google sign-in** — in the [Google Cloud console](https://console.cloud.google.com),
+create an OAuth client ID of type *Web application*, and add this exact redirect URI:
+
+```
+http://localhost:3000/api/auth/google/callback
+```
+
+Then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+### 4. Optional: image generation
+
+Either run [Stable Diffusion WebUI](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
+with `--api` (found automatically on port 7860, costs nothing, prompts never
+leave the machine), or set `REPLICATE_API_TOKEN` for a hosted fallback.
+
+### 5. Optional: a better search backend
 
 DuckDuckGo is the default because it needs no key, but it's scraped and gets rate
 limited. For heavier use, copy `.env.example` to `.env.local` and set one key:
@@ -94,6 +131,13 @@ two reasons: Ollama rejects cross-origin browser requests unless you set
 
 | Route | Does |
 |---|---|
+| `POST /api/auth/signup` | name + email + password, issues a code |
+| `POST /api/auth/verify` | checks the code, starts a session |
+| `POST /api/auth/login` | email + password |
+| `POST /api/auth/resend` | new code, throttled to 1/minute |
+| `GET /api/auth/google` → `/callback` | real OAuth 2.0 with PKCE |
+| `GET /api/auth/me` · `POST /api/auth/logout` | session state |
+| `POST /api/image` | generates an image (signed in only) |
 | `POST /api/chat` | Searches if needed, prompts Ollama with the results, returns the reply plus citations |
 | `POST /api/live` | Trending across live sources, or a cross-source search for a topic |
 | `GET /api/live` | Which sources exist and which are usable right now |
@@ -103,6 +147,12 @@ two reasons: Ollama rejects cross-origin browser requests unless you set
 
 ```
 lib/
+  auth/db.ts           SQLite: users, sessions, verification codes
+  auth/password.ts     scrypt hashing (node:crypto, no native dep)
+  auth/session.ts      httpOnly cookie sessions, tokens stored hashed
+  auth/codes.ts        6-digit codes: single-use, expiring, attempt-limited
+  auth/google.ts       OAuth 2.0 + PKCE
+  images/providers.ts  Stable Diffusion / ComfyUI / Replicate behind one interface
   live/index.ts        fans out across sources, dedupes, ranks, interleaves
   live/sources/*.ts    one adapter per platform, all behind LiveSource
   live/rss.ts          minimal RSS/Atom parser for news feeds
@@ -159,8 +209,9 @@ Treat them as a ballpark and click through before buying.
 npm test
 ```
 
-33 tests over the HTML and RSS parsers, price extraction, feed merging, and
-intent routing, run against fixtures of real search markup and feed XML.
+42 tests over the HTML and RSS parsers, price extraction, feed merging, intent
+routing, and the auth primitives — password hashing, code issue/verify, attempt
+limits, expiry and resend throttling.
 
 `tests/gather.test.ts` intercepts `fetch` to run the whole live pipeline — every
 source adapter, dedupe, ranking, interleaving, and failure isolation — against
@@ -188,6 +239,11 @@ All optional — see `.env.example`.
 | `MASTODON_INSTANCE` | `mastodon.social` | Whose Mastodon trends to read |
 | `NEWS_COUNTRY` / `NEWS_LANGUAGE` | `US` / `en-US` | Region for news and YouTube |
 | `YOUTUBE_API_KEY` | — | Enables the YouTube source |
+| `SMTP_*` | — | Emails verification codes instead of printing them |
+| `GOOGLE_CLIENT_ID` / `SECRET` | — | Enables Google sign-in |
+| `SD_WEBUI_URL` | `127.0.0.1:7860` | Local Stable Diffusion |
+| `REPLICATE_API_TOKEN` | — | Hosted image generation |
+| `DATABASE_PATH` | `.data/can-ai.db` | Account store |
 
 ## Troubleshooting
 
@@ -202,6 +258,17 @@ minutes, or set a `SERPER_API_KEY`.
 **"none listed a USD price"** — the results had no prices in your currency. Try a
 more specific product name, or check the currency in Settings.
 
+**"No image generator is reachable"** — nothing is running on port 7860. Start
+Stable Diffusion WebUI with `--api`, or set `REPLICATE_API_TOKEN`.
+
+**Verification code never arrives** — with no SMTP configured it's in your
+terminal, not your inbox. With SMTP configured and a Gmail account, check you
+used an App Password rather than your login password.
+
+**Google sign-in says "redirect_uri_mismatch"** — the URI in the Google console
+must match `APP_URL` exactly, including the port and the `/api/auth/google/callback`
+path.
+
 **A source shows as unavailable in the trending card** — Reddit rate limits by IP
 and returns 429 if you refresh hard; it recovers on its own in a few minutes. The
 other four are steadier. Turn any source off in Settings if it's noisy.
@@ -215,3 +282,19 @@ larger models will swap.
 `lib/search/providers.ts` defines a `SearchProvider` interface — `isConfigured()`
 and `search()`. Add an eBay or Amazon Product Advertising client there and it
 plugs into the scan route with no other changes.
+
+## Account security
+
+- Passwords are hashed with scrypt (N=2^15) and a per-user salt, never stored or
+  logged in plaintext.
+- Session tokens are 256-bit random values; only their SHA-256 is stored, so a
+  copied database file yields no usable sessions. The cookie is httpOnly, so
+  page JavaScript can never read it.
+- Verification codes come from `crypto.randomInt`, are stored hashed, expire in
+  15 minutes, are single-use, and are burned after 5 wrong attempts.
+- Login answers identically for a wrong password and an unknown address, so the
+  endpoint can't be used to discover which emails have accounts.
+- Google sign-in uses PKCE and a state cookie, so an intercepted authorization
+  code is unusable and a forged callback is rejected.
+
+The database sits at `.data/can-ai.db` and is gitignored.

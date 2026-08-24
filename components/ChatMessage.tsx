@@ -36,6 +36,25 @@ export default function ChatMessage({ message }: ChatMessageProps) {
 
         {message.liveDigest && <TrendingCard digest={message.liveDigest} />}
 
+        {message.image && (
+          <figure className="w-full rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            {/* A data: URI from our own API route — next/image would only add a
+                loader in front of bytes we already hold. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={message.image.dataUri}
+              alt={message.image.prompt}
+              width={message.image.width}
+              height={message.image.height}
+              className="w-full h-auto block"
+            />
+            <figcaption className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between gap-3">
+              <span className="truncate">{message.image.prompt}</span>
+              <span className="flex-shrink-0">{message.image.provider}</span>
+            </figcaption>
+          </figure>
+        )}
+
         {message.citations && message.citations.length > 0 && (
           <div className="w-full">
             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
