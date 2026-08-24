@@ -8,12 +8,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#0b7a5e',
+        /* DeepSeek's blue. */
+        primary: '#4d6bfe',
         /* Surfaces are separated by tone rather than borders — the reference
            apps use almost no visible rules. */
-        ground: { light: '#f7f8f8', dark: '#0d100f' },
-        surface: { light: '#ffffff', dark: '#171a19' },
-        sunk: { light: '#f0f2f1', dark: '#1e2321' },
+        ground: { light: '#ffffff', dark: '#111418' },
+        surface: { light: '#ffffff', dark: '#1a1e24' },
+        sunk: { light: '#f4f5f7', dark: '#20252c' },
       },
       borderRadius: {
         composer: '26px',

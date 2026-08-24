@@ -16,6 +16,9 @@ hosted AI service.
   from each article's Open Graph tags.
 - **Accounts** — sign up with name + email + password and confirm a real 6-digit
   emailed code, or continue with Google. Sessions are httpOnly cookies.
+- **The model drives.** Rather than the app pattern-matching your wording, the
+  model is handed tools — web search, live feeds, price scanning — and decides
+  for itself which to use. See "Giving it a brain" below.
 - **Normal chat** — ask anything, answered by your local model.
 - **Image generation** — "draw a fox asleep in falling snow" renders through a
   local Stable Diffusion server, or Replicate if you'd rather not run one.
@@ -356,3 +359,40 @@ stored on the user row.
 They are written to describe what this code actually does — everything local, no
 analytics, one session cookie. That makes them accurate, not authoritative: have
 a lawyer review them before you distribute the app to other people.
+
+## Giving it a brain
+
+The honest answer to "can Ollama actually do anything": yes — it runs the same
+open models everyone else runs. `deepseek-r1`, `qwen2.5`, `llama3.1` are real
+models, not toys. The app was the limiting factor, not Ollama.
+
+**What changed.** The app used to decide what to do by matching your wording:
+"draw" meant an image, "how much" meant a price scan. That works for phrasings
+somebody thought of, and quietly mishandles everything else. Now the model gets
+a tool manifest and picks:
+
+```
+search_web    · anything current or easily got wrong from memory
+get_trending  · Reddit, Hacker News, Bluesky, Mastodon, Google News
+scan_prices   · what sellers are asking, new and used
+```
+
+It calls what it needs, reads the result, and can call again — up to three
+rounds, then it must answer. Ordinary conversation calls nothing.
+`lib/agent.ts`, and it needs a tool-capable model; anything else falls back to
+the old keyword router automatically.
+
+**What actually makes it smarter**, roughly in order of effect:
+
+| | |
+|---|---|
+| A bigger model | `llama3.2` is 3B and weak. `qwen2.5:7b` or `llama3.1:8b` is a step change; `qwen2.5:14b` another if you have the RAM. |
+| A reasoning model | `ollama pull deepseek-r1:7b` — it thinks before answering. Slower, much better on anything multi-step. |
+| Giving it your data | Point it at your own documents. This is retrieval, not training, and it's what people usually mean by "train it on my stuff". |
+| Tools | Done — above. |
+
+**Training it yourself is the one thing not worth doing.** Pre-training a model
+needs a datacentre. Fine-tuning on a laptop is possible with LoRA but changes
+*style*, not knowledge or intelligence — you cannot fine-tune facts in reliably,
+and you'll usually make the model worse at everything else. If the goal is "it
+should know about X", retrieval beats fine-tuning at a fraction of the effort.

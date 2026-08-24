@@ -37,6 +37,67 @@ export const pickVisionModel = (installed: string[]): string | null => {
   return installed.find((name) => VISION_MODEL_PATTERN.test(name)) ?? null;
 };
 
+export interface ToolSpec {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, { type: string; description: string }>;
+      required?: string[];
+    };
+  };
+}
+
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_calls?: { function: { name: string; arguments: Record<string, unknown> } }[];
+  tool_name?: string;
+}
+
+/** Models known to support Ollama's tool-calling API. */
+const TOOL_CAPABLE =
+  /^(llama3\.[123]|llama3\.[123]:|qwen2\.5|qwen3|mistral|mistral-nemo|firefunction|command-r|hermes3|deepseek-r1|granite3|smollm2)/i;
+
+export const supportsTools = (model: string): boolean => TOOL_CAPABLE.test(model);
+
+/**
+ * The /api/chat endpoint, which unlike /api/generate accepts a tool manifest
+ * and can answer with a tool call instead of prose. This is what lets the model
+ * decide to search rather than the app guessing from keywords.
+ */
+export const chat = async (
+  messages: ChatMessage[],
+  model: string = DEFAULT_MODEL,
+  tools?: ToolSpec[],
+  signal?: AbortSignal
+): Promise<ChatMessage> => {
+  const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+      ...(tools && tools.length > 0 ? { tools } : {}),
+      options: { temperature: 0.6, top_p: 0.9 },
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(
+      `Ollama returned ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`
+    );
+  }
+
+  const data = await response.json();
+  return (data.message ?? { role: 'assistant', content: '' }) as ChatMessage;
+};
+
 export const generate = async (
   prompt: string,
   model: string = DEFAULT_MODEL,

@@ -23,14 +23,14 @@ body {
 }
 
 body {
-  background: #f7f8f8;
-  color: #0b1512;
+  background: #ffffff;
+  color: #16181d;
 }
 
 @media (prefers-color-scheme: dark) {
   body {
-    background: #0d100f;
-    color: #e8efec;
+    background: #111418;
+    color: #e9edf2;
   }
 }
 

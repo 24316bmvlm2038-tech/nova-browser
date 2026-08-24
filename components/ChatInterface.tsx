@@ -23,6 +23,31 @@ import { useSpeech } from '@/lib/useSpeech';
 import ChatMessage from './ChatMessage';
 import SettingsPanel from './SettingsPanel';
 
+/** Mirrors DeepSeek's mode switcher: what the model should optimise for. */
+const MODES = [
+  {
+    id: 'fast' as const,
+    label: 'Fast',
+    title: 'Fast mode',
+    blurb: 'Good for everyday conversation and instant answers.',
+    path: 'M13 2 3 14h8l-1 8 10-12h-8l1-8Z',
+  },
+  {
+    id: 'expert' as const,
+    label: 'Expert',
+    title: 'Expert mode',
+    blurb: 'Thinks step by step and searches before answering. Slower, more careful.',
+    path: 'M12 2 2 8l10 6 10-6-10-6ZM2 16l10 6 10-6M2 12l10 6 10-6',
+  },
+  {
+    id: 'vision' as const,
+    label: 'Vision',
+    title: 'Vision mode',
+    blurb: 'Reads photos. Point your camera at something or attach a picture.',
+    path: 'M3 5h18v14H3zM8.5 11.5 11 14l3-3.5 4 5.5H6l2.5-4.5Z',
+  },
+];
+
 const EXAMPLES = [
   "What's trending right now?",
   'Draw a fox asleep in falling snow',
@@ -54,6 +79,7 @@ export default function ChatInterface() {
     updateScannerConfig,
   } = useChatStore();
 
+  const [mode, setMode] = useState<(typeof MODES)[number]['id']>('fast');
   const [inputValue, setInputValue] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -338,27 +364,33 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-ground-light dark:bg-ground-dark">
+    <div className="flex flex-col h-full bg-white dark:bg-ground-dark">
       <header className="flex-shrink-0 px-4 py-3 flex items-center justify-between gap-4">
         <button
-          onClick={refreshStatus}
-          className="flex items-center gap-2 px-1 py-1 rounded-full text-[15px] text-gray-900 dark:text-white"
-          title="Re-check the connection"
+          onClick={() => setSettingsOpen(true)}
+          className="w-9 h-9 grid place-items-center -ml-1.5 text-gray-700 dark:text-gray-300"
+          aria-label="Settings"
         >
-          <span className="font-semibold">Can Ai</span>
-          <span className="text-gray-400 dark:text-gray-500 font-normal">
-            {ollamaConnected ? selectedModel || 'Ollama' : 'offline'}
-          </span>
-          <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="m6 9 6 6 6-6" />
+          <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+            <path d="M4 8h16M4 16h10" />
           </svg>
         </button>
 
         <div className="flex items-center gap-1">
           <button
+            onClick={clearMessages}
+            className="w-9 h-9 grid place-items-center rounded-full text-gray-700 dark:text-gray-300"
+            title="New chat"
+            aria-label="New chat"
+          >
+            <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v8M8 12h8" />
+            </svg>
+          </button>
+          <button
+            hidden
             onClick={() => setSettingsOpen(true)}
-            className="w-9 h-9 grid place-items-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            title="Settings"
             aria-label="Settings"
           >
             <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -384,18 +416,39 @@ export default function ChatInterface() {
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">
-            <span
-              aria-hidden="true"
-              className="block w-11 h-11 rounded-[14px] bg-primary mb-5"
-              style={{
-                // A soft inner glow rather than a flat block.
-                backgroundImage:
-                  'radial-gradient(120% 120% at 30% 20%, rgba(255,255,255,.45), transparent 60%)',
-              }}
-            />
-            <h2 className="text-hero font-normal text-gray-900 dark:text-white text-balance">
-              What can I do for you?
-            </h2>
+            <div className="flex items-center gap-2.5 mb-6">
+              <svg className="w-8 h-8 text-primary" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M20.6 5.3c-.5-.3-1 .1-1.6.6-1 .8-2 1.2-3.3 1-1.9-.3-3.7.2-5.2 1.4-1.7 1.4-2.5 3.2-2.4 5.4 0 .5-.1.8-.5 1.1-1 .7-1.6 1.7-1.8 2.9-.1.5-.3.6-.7.5-1-.2-1.8-.7-2.4-1.5-.2-.3-.4-.4-.6-.1-.4.6-.2 1.7.4 2.4 1.2 1.4 2.8 2 4.6 2h6.3c3.6-.1 6.6-2.7 7.3-6.2.5-2.4.1-4.7-1.2-6.8-.3-.5-.6-1-.4-1.6.2-.4.3-.8-.5-1.1Zm-6.4 9.4c-.3.2-.6.3-1 .3-1 0-1.8-.8-1.8-1.8s.8-1.8 1.8-1.8c.5 0 .9.2 1.2.5.2.2.2.4 0 .6l-.3.3c-.2.2-.4.2-.6 0-.3-.2-.7-.1-.8.2-.2.3 0 .7.4.8.3 0 .5-.1.7-.3.2-.3.4-.3.7-.1l.3.3c.2.2.2.4-.1.6-.2.2-.3.3-.5.4Z" />
+              </svg>
+              <h2 className="text-[26px] font-bold text-gray-900 dark:text-white tracking-tight">
+                {MODES.find((m) => m.id === mode)?.title}
+              </h2>
+            </div>
+
+            {/* Segmented control, DeepSeek's Schnell / Experte / Vision. */}
+            <div className="flex p-1 rounded-full border border-gray-200 dark:border-gray-700">
+              {MODES.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => setMode(option.id)}
+                  aria-pressed={mode === option.id}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[14px] font-medium transition ${
+                    mode === option.id
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <path d={option.path} />
+                  </svg>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-4 max-w-[19rem] text-[14.5px] leading-relaxed text-gray-500 dark:text-gray-400">
+              {MODES.find((m) => m.id === mode)?.blurb}
+            </p>
           </div>
         ) : (
           <div className="py-4">
@@ -417,7 +470,7 @@ export default function ChatInterface() {
       </div>
 
       <div className="flex-shrink-0 px-3 pb-3 pt-1">
-        <div className="max-w-2xl mx-auto rounded-composer bg-white dark:bg-surface-dark shadow-[0_1px_2px_rgba(11,21,18,.06),0_8px_28px_-16px_rgba(11,21,18,.35)] px-3 pt-2.5 pb-2">
+        <div className="max-w-2xl mx-auto rounded-composer bg-sunk-light dark:bg-sunk-dark px-3.5 pt-3 pb-2.5">
           <input
             ref={photoRef}
             type="file"
@@ -431,7 +484,7 @@ export default function ChatInterface() {
             onChange={(event) => setInputValue(event.target.value)}
             onKeyDown={handleKeyDown}
             rows={1}
-            placeholder="Ask anything"
+            placeholder="Message, or hold to speak"
             disabled={isLoading}
             className="w-full bg-transparent px-1 py-1.5 text-[16px] leading-relaxed text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none disabled:opacity-50 resize-none max-h-40"
           />
@@ -441,7 +494,7 @@ export default function ChatInterface() {
             <button
               onClick={() => photoRef.current?.click()}
               disabled={isLoading}
-              className="w-9 h-9 grid place-items-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-sunk-light dark:hover:bg-sunk-dark disabled:opacity-40 transition"
+              className="w-8 h-8 grid place-items-center rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 disabled:opacity-40 transition"
               aria-label="Add a photo"
               title="Add a photo"
             >
@@ -451,6 +504,12 @@ export default function ChatInterface() {
             </button>
 
             <ModeChip
+              active={mode === 'expert'}
+              onClick={() => setMode(mode === 'expert' ? 'fast' : 'expert')}
+              label="Think"
+              path="M12 2a7 7 0 0 0-4 12.7V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.3A7 7 0 0 0 12 2ZM9 22h6"
+            />
+            <ModeChip
               active={scannerConfig.searchMode !== 'never'}
               onClick={() =>
                 updateScannerConfig({
@@ -458,7 +517,7 @@ export default function ChatInterface() {
                 })
               }
               label="Search"
-              path="M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16ZM21 21l-4.35-4.35"
+              path="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"
             />
 
             <span className="flex-1" />
@@ -466,10 +525,10 @@ export default function ChatInterface() {
             <button
               onClick={() => (speech.state === 'listening' ? speech.stop() : speech.start())}
               disabled={isLoading}
-              className={`w-9 h-9 flex-shrink-0 grid place-items-center rounded-full transition disabled:opacity-40 ${
+              className={`w-8 h-8 flex-shrink-0 grid place-items-center rounded-full transition disabled:opacity-40 ${
                 speech.state === 'listening'
                   ? 'bg-red-500 text-white animate-pulse'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-sunk-light dark:hover:bg-sunk-dark'
+                  : 'border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
               }`}
               aria-label={speech.state === 'listening' ? 'Stop dictating' : 'Dictate'}
               title={speech.state === 'listening' ? 'Stop dictating' : 'Dictate'}
@@ -483,7 +542,7 @@ export default function ChatInterface() {
             <button
             onClick={handleSendMessage}
             disabled={isLoading || !inputValue.trim()}
-            className="w-9 h-9 flex-shrink-0 grid place-items-center rounded-full bg-primary text-white disabled:opacity-25 disabled:cursor-not-allowed transition hover:brightness-110"
+            className="w-8 h-8 flex-shrink-0 grid place-items-center rounded-full bg-primary text-white disabled:opacity-25 disabled:cursor-not-allowed transition hover:brightness-110"
             aria-label="Send message"
           >
             {isLoading ? (
@@ -557,10 +616,10 @@ function ModeChip({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`flex items-center gap-1.5 h-9 px-3 rounded-full text-[13px] font-medium transition ${
+      className={`flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] font-medium border transition ${
         active
-          ? 'bg-primary/10 text-primary'
-          : 'text-gray-500 dark:text-gray-400 hover:bg-sunk-light dark:hover:bg-sunk-dark'
+          ? 'border-primary/40 bg-primary/[.08] text-primary'
+          : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
       }`}
     >
       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { webSearch } from '@/lib/search/providers';
-import { DEFAULT_MODEL, generate } from '@/lib/ollamaServer';
+import { DEFAULT_MODEL, generate, supportsTools } from '@/lib/ollamaServer';
+import { runAgent } from '@/lib/agent';
 import { needsWebSearch } from '@/lib/searchIntent';
 import type { SearchResult } from '@/lib/search/types';
 
@@ -44,6 +45,28 @@ export async function POST(request: Request) {
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
+    // First choice: let the model pick its own tools. That is the difference
+    // between reasoning about the request and pattern-matching it.
+    if (searchMode !== 'never' && supportsTools(model)) {
+      const agent = await runAgent(message, history, model, controller.signal);
+      if (agent.usedTools && agent.reply) {
+        return NextResponse.json({
+          reply: agent.reply,
+          model,
+          searched: agent.runs.length > 0,
+          searchError: null,
+          toolRuns: agent.runs.map((run) => ({
+            name: run.name,
+            args: run.args,
+            error: run.error ?? null,
+            data: run.data ?? null,
+          })),
+          sources: citationsFrom(agent.runs),
+        });
+      }
+    }
+
+    // Fallback for models with no tool support: the keyword router.
     const shouldSearch =
       searchMode === 'always' ||
       (searchMode === 'auto' && needsWebSearch(message));
@@ -76,6 +99,7 @@ export async function POST(request: Request) {
       model,
       searched: sources.length > 0,
       searchError,
+      toolRuns: [],
       sources: sources.map((source, index) => ({
         index: index + 1,
         title: source.title,
@@ -94,6 +118,26 @@ export async function POST(request: Request) {
     clearTimeout(timeout);
   }
 }
+
+/** Pull citable pages out of whatever the model actually looked at. */
+const citationsFrom = (runs: { data?: unknown }[]) => {
+  const cites: { index: number; title: string; url: string; site: string }[] = [];
+
+  for (const run of runs) {
+    const payload = run.data as { results?: SearchResult[] } | null | undefined;
+    for (const result of payload?.results ?? []) {
+      if (cites.some((c) => c.url === result.url)) continue;
+      cites.push({
+        index: cites.length + 1,
+        title: result.title,
+        url: result.url,
+        site: result.site,
+      });
+    }
+  }
+
+  return cites.slice(0, 6);
+};
 
 const buildPrompt = (
   message: string,
