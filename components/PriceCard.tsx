@@ -23,7 +23,8 @@ export default function PriceCard({ priceData }: PriceCardProps) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+      {/* auto-fit + minmax(0,…) so a long value shrinks instead of clipping */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 [&>*]:min-w-0">
         <Stat label="Average" value={money(priceData.averagePrice)} highlight />
         <Stat label="Lowest" value={money(priceData.lowestPrice)} />
         {priceData.newPrice > 0 && <Stat label="New" value={money(priceData.newPrice)} />}
