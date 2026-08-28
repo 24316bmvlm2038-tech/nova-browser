@@ -53,6 +53,46 @@ const toItems = (xml: string, limit: number): LiveItem[] =>
     };
   });
 
+/**
+ * Google News' own sections. Reading only the front page gives one
+ * undifferentiated stream, where a day of politics buries everything else;
+ * these are the same categories the Google News app puts across the top.
+ */
+export const SECTIONS = [
+  { id: 'top', label: 'Top stories' },
+  { id: 'WORLD', label: 'World' },
+  { id: 'NATION', label: 'National' },
+  { id: 'BUSINESS', label: 'Business' },
+  { id: 'TECHNOLOGY', label: 'Technology' },
+  { id: 'SCIENCE', label: 'Science' },
+  { id: 'HEALTH', label: 'Health' },
+  { id: 'SPORTS', label: 'Sport' },
+  { id: 'ENTERTAINMENT', label: 'Entertainment' },
+] as const;
+
+export type SectionId = (typeof SECTIONS)[number]['id'];
+
+const isSection = (value: string): boolean =>
+  SECTIONS.some((section) => section.id === value);
+
+/**
+ * Headlines for one section. Anything unrecognised falls back to the front
+ * page rather than requesting a URL Google will 404 — a bad section id is a
+ * caller's typo, not a reason to show the user an error.
+ */
+export const sectionHeadlines = async (
+  section: string,
+  options: FetchOptions = {}
+): Promise<LiveItem[]> => {
+  const limit = options.limit ?? 15;
+  const path =
+    section && section !== 'top' && isSection(section)
+      ? `/headlines/section/topic/${section}`
+      : '';
+  const xml = await fetchFeed(path, new URLSearchParams(locale()), options.signal);
+  return toItems(xml, limit);
+};
+
 export const googlenews: LiveSource = {
   id: 'googlenews',
   label: 'Google News',
@@ -60,9 +100,7 @@ export const googlenews: LiveSource = {
   isConfigured: () => true,
 
   async trending(options: FetchOptions = {}) {
-    const limit = options.limit ?? 15;
-    const xml = await fetchFeed('', new URLSearchParams(locale()), options.signal);
-    return toItems(xml, limit);
+    return sectionHeadlines('top', options);
   },
 
   async search(query: string, options: FetchOptions = {}) {

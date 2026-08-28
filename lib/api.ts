@@ -93,13 +93,16 @@ export const fetchLive = (
   query: string | undefined,
   sources: string[],
   limit = 18,
-  withImages = false
+  withImages = false,
+  /** Google News section id; ignored by the other sources. */
+  section?: string
 ): Promise<LiveDigest> =>
   postJson<LiveDigest>('/api/live', {
     query: query || undefined,
     sources: sources.length > 0 ? sources : undefined,
     limit,
     withImages,
+    section: section || undefined,
   });
 
 export const fetchLiveSources = async (): Promise<SourceInfo[]> => {

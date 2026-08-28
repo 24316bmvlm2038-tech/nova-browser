@@ -24,6 +24,7 @@ export async function GET() {
 export async function POST(request: Request) {
   let query: string | undefined;
   let sources: string[] | undefined;
+  let section: string | undefined;
   let limit: number;
   let withImages: boolean;
 
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     query = typeof body.query === 'string' && body.query.trim() ? body.query.trim() : undefined;
     sources = Array.isArray(body.sources) ? body.sources.filter((s: unknown) => typeof s === 'string') : undefined;
+    section = typeof body.section === 'string' && body.section.trim() ? body.section.trim() : undefined;
     limit = typeof body.limit === 'number' ? Math.min(Math.max(body.limit, 1), 40) : 18;
     // Costs one extra request per story, so it's opt-in — the News tab asks
     // for it, the chat digest doesn't.
@@ -43,7 +45,13 @@ export async function POST(request: Request) {
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const digest = await gather({ query, sources, limit, signal: controller.signal });
+    const digest = await gather({
+      query,
+      sources,
+      section,
+      limit,
+      signal: controller.signal,
+    });
 
     // Every source failing is an error; some failing is normal and reported.
     if (digest.items.length === 0 && digest.failures.length > 0) {

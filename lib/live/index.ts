@@ -1,5 +1,5 @@
 import { bluesky } from './sources/bluesky';
-import { googlenews } from './sources/googlenews';
+import { googlenews, sectionHeadlines } from './sources/googlenews';
 import { hackernews } from './sources/hackernews';
 import { mastodon } from './sources/mastodon';
 import { reddit } from './sources/reddit';
@@ -127,6 +127,8 @@ interface GatherOptions extends FetchOptions {
   sources?: string[];
   /** Omit for trending; provide to search each source instead. */
   query?: string;
+  /** Google News section, e.g. `TECHNOLOGY`. Ignored by the other sources. */
+  section?: string;
 }
 
 /**
@@ -141,12 +143,17 @@ export const gather = async (options: GatherOptions = {}): Promise<LiveDigest> =
 
   const settled = await Promise.allSettled(
     sources.map(async (source) => {
+      const perSourceOptions = { limit: perSource, signal: options.signal };
       const fetcher =
         options.query && source.search
-          ? source.search(options.query, { limit: perSource, signal: options.signal })
+          ? source.search(options.query, perSourceOptions)
           : options.query
             ? Promise.resolve([])
-            : source.trending({ limit: perSource, signal: options.signal });
+            : // A section only means something to Google News; everything else
+              // just returns its own trending list.
+              options.section && source.id === 'googlenews'
+              ? sectionHeadlines(options.section, perSourceOptions)
+              : source.trending(perSourceOptions);
 
       const [items, topics] = await Promise.all([
         fetcher,
